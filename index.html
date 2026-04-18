@@ -927,8 +927,46 @@
             opacity: 1;
         }
     </style>
+
+    <style id="fast-splash-styles">
+      /* Tiny splash — auto-dismiss in <=1s, never blocks content underneath */
+      #app-splash{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;
+        background:linear-gradient(135deg,#e0f2fe 0%,#f0fdf4 50%,#dcfce7 100%);
+        transition:opacity .35s ease;pointer-events:auto}
+      #app-splash.hide{opacity:0;pointer-events:none}
+      #app-splash .ring{width:54px;height:54px;border-radius:50%;
+        border:3px solid rgba(15,23,42,.12);border-top-color:#0284c7;animation:fs-spin .8s linear infinite}
+      @keyframes fs-spin{to{transform:rotate(360deg)}}
+      /* Low-quality image placeholder — blurred shimmer until real src loads */
+      img[data-src]:not(.lqip-loaded){
+        background:linear-gradient(110deg,#e2e8f0 8%,#f1f5f9 18%,#e2e8f0 33%);
+        background-size:200% 100%;animation:lqip-shimmer 1.4s linear infinite;
+        filter:blur(8px);transition:filter .4s ease,opacity .4s ease;min-height:80px;color:transparent}
+      img.lqip-loaded{filter:none;animation:none;background:none}
+      @keyframes lqip-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+      /* Skeleton text rows */
+      .sk-row{height:14px;border-radius:6px;background:linear-gradient(110deg,#e2e8f0 8%,#f1f5f9 18%,#e2e8f0 33%);
+        background-size:200% 100%;animation:lqip-shimmer 1.4s linear infinite;margin:8px 0}
+    </style>
 </head>
 <body class="min-h-screen antialiased">
+
+    <div id="app-splash" aria-hidden="true"><div class="ring"></div></div>
+    <script>
+      // Reveal as soon as DOM is parsed — content streams in behind via skeletons.
+      (function(){
+        var dismissed=false;
+        function hide(){ if(dismissed) return; dismissed=true;
+          var s=document.getElementById('app-splash'); if(!s) return;
+          s.classList.add('hide'); setTimeout(function(){ s&&s.remove(); },400);
+        }
+        // Hard cap: never longer than 1s
+        setTimeout(hide, 1000);
+        if(document.readyState!=='loading'){ requestAnimationFrame(hide); }
+        else document.addEventListener('DOMContentLoaded', function(){ requestAnimationFrame(hide); });
+      })();
+    </script>
+
 
 <div class="orb w-[600px] h-[600px] bg-sky-200 top-[-10%] left-[-5%]"></div>
 <div class="orb w-[500px] h-[500px] bg-emerald-100 bottom-[5%] right-[-5%]"></div>

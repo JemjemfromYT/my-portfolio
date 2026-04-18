@@ -404,7 +404,7 @@ function renderMusic(music) {
                 <div class="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/60 to-transparent pointer-events-none"></div>
                 ${isStyxHelix ? '<div class="absolute top-2 right-2 bg-gradient-to-r from-violet-500 to-pink-500 text-white text-[9px] px-2 py-1 rounded-full font-black uppercase tracking-wider z-10">Special</div>' : ''}
                 <div class="relative mb-4 rounded-xl overflow-hidden shadow-md border border-white aspect-square">
-                    <img src="${track.image_url}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
+                    <img loading="lazy" decoding="async" data-src="${track.image_url}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
                     <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
                     <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <div class="w-16 h-16 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-white text-2xl shadow-lg">&#9654;</div>
@@ -488,7 +488,7 @@ function renderProjects(projects) {
             <div class="glass-card p-6 md:p-8 flex flex-col group relative overflow-hidden bg-white/40">
                 <div class="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/70 to-transparent pointer-events-none"></div>
                 <div class="relative mb-6 rounded-2xl overflow-hidden shadow-md border border-white">
-                    <img src="${p.image_url}" class="h-56 w-full object-cover transition-transform duration-700 group-hover:scale-105">
+                    <img loading="lazy" decoding="async" data-src="${p.image_url}" class="h-56 w-full object-cover transition-transform duration-700 group-hover:scale-105">
                     <div class="absolute inset-0 bg-gradient-to-t from-sky-900/40 to-transparent pointer-events-none"></div>
                     ${isAdmin ? `
                         <div class="absolute top-3 right-3 flex gap-2 z-20">
@@ -566,7 +566,7 @@ function renderCertificates(certs) {
                 <div class="flex flex-wrap gap-6 relative z-10">
                     ${groups[category].map(cert => `
                         <div class="relative group cursor-pointer">
-                            <img src="${cert.image_url}" onclick="openLightbox('${cert.image_url}')" class="cert-img-target h-40 w-56 object-cover rounded-xl border-2 border-white shadow-lg shadow-sky-900/10 cursor-zoom-in transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl">
+                            <img loading="lazy" decoding="async" data-src="${cert.image_url}" onclick="openLightbox('${cert.image_url}')" class="cert-img-target h-40 w-56 object-cover rounded-xl border-2 border-white shadow-lg shadow-sky-900/10 cursor-zoom-in transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl">
                             <div class="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent rounded-xl pointer-events-none"></div>
                             ${isAdmin ? `<button onclick="deleteItem('certificates', '${cert.id}')" class="absolute -top-3 -right-3 bg-red-500/90 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-lg border border-red-400 font-bold hover:bg-red-600 transition-colors backdrop-blur-sm z-20">&#x2715;</button>` : ''}
                         </div>
@@ -611,7 +611,7 @@ function renderHobbies(hobbies) {
                     ${groups[category].map(h => `
                         <div class="relative flex flex-col bg-white/80 p-4 rounded-2xl border border-white shadow-lg shadow-emerald-900/5 hover:-translate-y-2 transition-all duration-300 w-52 group">
                             <div class="relative overflow-hidden rounded-xl border border-white shadow-sm">
-                                <img src="${h.cover_image}" class="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-110">
+                                <img loading="lazy" decoding="async" data-src="${h.cover_image}" class="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-110">
                                 <div class="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
                                 <span class="absolute top-2 left-2 bg-white/95 text-emerald-800 text-[10px] px-3 py-1 rounded-md font-black shadow-sm backdrop-blur-md border border-white uppercase tracking-widest">RANK #${h.rank}</span>
                                 ${isAdmin ? `<button onclick="deleteItem('hobbies', '${h.id}')" class="absolute top-2 right-2 bg-red-500/90 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs shadow-md border border-red-400 font-bold z-10 hover:bg-red-600 backdrop-blur-sm">&#x2715;</button>` : ''}
@@ -645,7 +645,7 @@ function renderSocials(socials) {
             <a href="${s.link}" target="_blank" class="flex items-center gap-5 glass-card p-5 rounded-2xl transition-all duration-300 hover:scale-105 relative overflow-hidden bg-white/70">
                 <div class="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/90 to-transparent pointer-events-none"></div>
                 <div class="relative w-14 h-14 rounded-xl overflow-hidden shadow-md border border-white flex-shrink-0 bg-white">
-                    <img src="${s.image_url}" class="w-full h-full object-cover">
+                    <img loading="lazy" decoding="async" data-src="${s.image_url}" class="w-full h-full object-cover">
                 </div>
                 <div class="flex flex-col overflow-hidden relative z-10">
                     <span class="font-extrabold text-slate-800 truncate text-lg tracking-tight">${s.platform}</span>
@@ -913,7 +913,7 @@ window.openGallery = async function(hobbyId, title, coverImgUrl) {
 
     if (addBtn) isAdmin ? addBtn.classList.remove('hidden') : addBtn.classList.add('hidden');
 
-    imgContainer.innerHTML = `<div class="relative group cursor-pointer hover:scale-105 transition-transform duration-300"><img src="${coverImgUrl}" class="max-h-96 w-auto rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/20"></div>`;
+    imgContainer.innerHTML = `<div class="relative group cursor-pointer hover:scale-105 transition-transform duration-300"><img loading="lazy" decoding="async" data-src="${coverImgUrl}" class="max-h-96 w-auto rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/20"></div>`;
 
     document.getElementById('gallery-modal').classList.remove('hidden');
     document.getElementById('gallery-modal').classList.add('flex');
@@ -924,7 +924,7 @@ window.openGallery = async function(hobbyId, title, coverImgUrl) {
         const isVideo = /\.(mp4|webm|ogg|mov|m4v)(\?|$)/i.test(url);
         const media = isVideo
             ? `<video src="${url}" controls playsinline class="max-h-96 w-auto rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/20 bg-black"></video>`
-            : `<img src="${url}" class="max-h-96 w-auto rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/20">`;
+            : `<img loading="lazy" decoding="async" data-src="${url}" class="max-h-96 w-auto rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/20">`;
         imgContainer.innerHTML += `<div class="relative group cursor-pointer hover:scale-105 transition-transform duration-300">${media}</div>`;
     });
 }
@@ -1726,3 +1726,43 @@ document.addEventListener('DOMContentLoaded', () => {
     initSystemNotif();
     loadPortfolio();
 });
+
+
+/* === FAST-LOAD: lazy image hydrator (LQIP -> real src on viewport entry) === */
+(function(){
+  if (window.__lqipHydratorInstalled) return;
+  window.__lqipHydratorInstalled = true;
+  var io = ('IntersectionObserver' in window) ? new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(!e.isIntersecting) return;
+      var img = e.target, real = img.getAttribute('data-src');
+      if(!real) return;
+      io.unobserve(img);
+      var pre = new Image();
+      pre.onload = function(){
+        img.src = real;
+        img.removeAttribute('data-src');
+        img.classList.add('lqip-loaded');
+      };
+      pre.onerror = function(){
+        img.src = real; img.removeAttribute('data-src'); img.classList.add('lqip-loaded');
+      };
+      pre.src = real;
+    });
+  }, { rootMargin: '300px 0px', threshold: 0.01 }) : null;
+
+  function hydrate(){
+    document.querySelectorAll('img[data-src]').forEach(function(img){
+      img.setAttribute('loading','lazy');
+      img.setAttribute('decoding','async');
+      if(io) io.observe(img);
+      else { img.src = img.getAttribute('data-src'); img.removeAttribute('data-src'); img.classList.add('lqip-loaded'); }
+    });
+  }
+  // Re-hydrate after any DOM mutation (covers all render* functions)
+  var mo = new MutationObserver(function(){ hydrate(); });
+  document.addEventListener('DOMContentLoaded', function(){
+    hydrate();
+    mo.observe(document.body, { childList:true, subtree:true });
+  });
+})();
