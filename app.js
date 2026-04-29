@@ -453,10 +453,12 @@ async function loadPortfolio() {
     // Projects sorted by display_order (custom order)
     const { data: projects } = await db.from('projects').select('*').order('display_order', { ascending: true });
     allProjects = projects || [];
+    window.allProjects = allProjects;
     renderProjects(allProjects);
 
     const { data: certs } = await db.from('certificates').select('*');
     allCerts = certs || [];
+    window.allCerts = allCerts;
     renderCertificates(allCerts);
 
     const { data: hobbies } = await db.from('hobbies').select('*').order('rank', { ascending: true });
@@ -904,6 +906,7 @@ notifYes.addEventListener('click', () => {
 notifSubmit.addEventListener('click', () => {
     if (notifPinInput.value === "2027") {
         isAdmin = true;
+        window.isAdmin = true;
         adminIndicator.classList.remove('hidden');
         document.getElementById('storage-tracker')?.classList.remove('hidden');
         [addProjectBtn, addCertBtn, addHobbyBtn, addSocialBtn, editProfileBtn, editQuoteBtn, editWisdomBtn, addMusicBtn, document.getElementById('edit-avatar-btn')].forEach(btn => btn?.classList.remove('hidden'));
@@ -1096,6 +1099,8 @@ async function creatorSave() {
         catch (e) { console.warn('[creator] purge failed', e); }
         // Refresh the admin storage meter so the user sees the drop immediately.
         try { await loadStorageUsage(); } catch (_) {}
+        // Officially commit: wipe the notification feed (new checkpoint).
+        try { await window.clearAllAdminActivity?.(); } catch (_) {}
         await refreshCreatorPendingCount();
         creatorStatusEl.textContent = purged
             ? `✓ Checkpoint saved. ${purged} orphan file${purged === 1 ? '' : 's'} purged from storage.`
@@ -1193,6 +1198,8 @@ async function creatorUndo() {
             }
         }
         creatorStatusEl.textContent = '⟲ Realm restored to the last checkpoint.';
+        // Officially rolled back: wipe the notification feed too.
+        try { await window.clearAllAdminActivity?.(); } catch (_) {}
         await refreshCreatorPendingCount();
         // Refresh whatever the page is currently showing
         try { await loadPortfolio(); } catch (_) {}
@@ -2567,3 +2574,435 @@ window.saveSocialEdit = async function() {
     closeSocialEdit();
     loadPortfolio();
 };
+
+/* ============================================================
+   ADMIN ACTIVITY NOTIFICATIONS + PROJECT LINKS + SEE MORE
+   Self-contained module. Requires Supabase tables:
+     - admin_activity (see instructions)
+     - projects.links (jsonb, default '[]')
+     - projects.extra_info (text, nullable)
+   ============================================================ */
+(function () {
+  const LS_LAST_READ = 'admin_activity_last_read_v1';
+
+  // --- helpers ---------------------------------------------------
+  function fmtTime(iso) {
+    const d = new Date(iso); const diff = (Date.now() - d.getTime()) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+    return d.toLocaleDateString();
+  }
+  function actionColor(a){return a==='create'?'bg-emerald-100 text-emerald-700':a==='delete'?'bg-rose-100 text-rose-700':'bg-amber-100 text-amber-700';}
+
+  // Log a change. Safe to call even if table missing (errors are swallowed).
+  async function logActivity({ action, entity_type, entity_label, image_url=null, details=null }) {
+    try {
+      await db.from('admin_activity').insert([{
+        action, entity_type, entity_label,
+        image_url, details, actor: 'admin'
+      }]);
+      loadNotifications();
+    } catch (e) { /* table may not exist yet */ }
+  }
+  window.logAdminActivity = logActivity;
+
+  // --- bell UI ---------------------------------------------------
+  const bellBtn = document.getElementById('notif-bell-btn');
+  const bellPanel = document.getElementById('notif-bell-panel');
+  const bellCount = document.getElementById('notif-bell-count');
+  const bellList = document.getElementById('notif-bell-list');
+  const bellSub = document.getElementById('notif-bell-sub');
+
+  let activityCache = [];
+
+  function renderBell() {
+    // Badge shows the count of all current activity entries.
+    // Entries are only cleared when the creator clicks Save or Undo,
+    // which wipes the admin_activity table (see clearAllAdminActivity).
+    const unread = activityCache.length;
+    if (unread > 0) {
+      bellCount.textContent = unread > 99 ? '99+' : String(unread);
+      bellCount.classList.remove('hidden');
+    } else {
+      bellCount.classList.add('hidden');
+    }
+    bellSub.textContent = activityCache.length
+      ? `${activityCache.length} recent change${activityCache.length===1?'':'s'}`
+      : 'No activity yet';
+
+    if (!activityCache.length) {
+      bellList.innerHTML = `<p class="text-xs text-slate-400 italic px-4 py-6 text-center">No activity yet.</p>`;
+      return;
+    }
+    bellList.innerHTML = activityCache.map(a => {
+      const isUnread = true; // all entries are pending until creator Save/Undo
+      const img = a.image_url
+        ? `<img src="${a.image_url}" class="w-12 h-12 rounded-lg object-cover border border-slate-200 flex-shrink-0">`
+        : `<div class="w-12 h-12 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-lg flex-shrink-0">${a.entity_type==='project'?'🗂️':a.entity_type==='cert'?'🎓':a.entity_type==='hobby'?'🎨':a.entity_type==='social'?'🔗':'•'}</div>`;
+      const det = a.details ? `<p class="text-[10px] text-slate-500 mt-1 leading-snug line-clamp-2">${escapeHtml(a.details)}</p>` : '';
+      return `
+        <div class="flex gap-3 px-4 py-3 hover:bg-sky-50/50 transition-colors ${isUnread?'bg-sky-50/30':''}">
+          ${img}
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${actionColor(a.action)}">${a.action}</span>
+              <span class="text-[10px] text-slate-400 font-medium">${a.entity_type}</span>
+              ${isUnread?'<span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>':''}
+            </div>
+            <p class="text-xs font-bold text-slate-800 mt-0.5 truncate">${escapeHtml(a.entity_label || '—')}</p>
+            ${det}
+            <p class="text-[10px] text-slate-400 mt-1">${fmtTime(a.created_at)}</p>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  // Full-screen "See more" modal for project info
+  window.openProjectInfoFullscreen = function(p) {
+    const links = getProjectLinks(p);
+    const root = document.createElement('div');
+    root.className = 'fixed inset-0 z-[220] bg-slate-900/70 backdrop-blur-md flex items-stretch sm:items-center justify-center sm:p-6 overflow-y-auto';
+    const linksHtml = links.length ? `
+      <div class="mt-8 pt-6 border-t border-slate-200">
+        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">Project Links</p>
+        <div class="flex flex-wrap gap-2">
+          ${links.map(l => `<a href="${l.url}" target="_blank" rel="noopener" class="px-4 py-2 rounded-full bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold uppercase tracking-wider shadow transition-colors">${escapeHtml(l.label || 'Open')}</a>`).join('')}
+        </div>
+      </div>` : '';
+    const extraHtml = (p.extra_info && p.extra_info.trim().length) ? `
+      <div class="mt-6 pt-6 border-t border-slate-200">
+        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">More Info</p>
+        <div class="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">${escapeHtml(p.extra_info)}</div>
+      </div>` : '';
+    const imgHtml = p.image_url ? `<img src="${p.image_url}" class="w-full h-56 sm:h-72 object-cover">` : '';
+    root.innerHTML = `
+      <div class="bg-white w-full sm:max-w-3xl sm:max-h-[90vh] sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <div class="relative">
+          ${imgHtml}
+          <button data-act="close" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/95 hover:bg-white text-slate-700 flex items-center justify-center font-bold shadow-lg backdrop-blur-sm" aria-label="Close">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6 sm:p-8">
+          <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">${escapeHtml(p.title || '')}</h2>
+          <div class="mt-4 text-sm sm:text-base text-slate-700 leading-relaxed whitespace-pre-wrap">${escapeHtml(p.description || '')}</div>
+          ${extraHtml}
+          ${linksHtml}
+        </div>
+      </div>`;
+    document.body.appendChild(root);
+    document.body.style.overflow = 'hidden';
+    const close = () => { root.remove(); document.body.style.overflow = ''; };
+    root.addEventListener('click', (e) => {
+      if (e.target === root) close();
+      if (e.target.dataset && e.target.dataset.act === 'close') close();
+    });
+    const onKey = (e) => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } };
+    document.addEventListener('keydown', onKey);
+  };
+
+    function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+  async function loadNotifications() {
+    try {
+      const { data, error } = await db.from('admin_activity')
+        .select('*').order('created_at', { ascending: false }).limit(30);
+      if (error) throw error;
+      activityCache = data || [];
+      renderBell();
+    } catch (e) {
+      activityCache = [];
+      bellList.innerHTML = `<p class="text-xs text-rose-500 italic px-4 py-6 text-center">Activity table not set up yet.<br><span class="text-slate-400">Create the <b>admin_activity</b> table in Supabase.</span></p>`;
+    }
+  }
+  window.loadAdminNotifications = loadNotifications;
+
+  // Wipe every activity entry. Called from creator Save / Undo so the bell
+  // resets to zero only when the creator officially commits or rolls back.
+  async function clearAllAdminActivity() {
+    try {
+      // delete every row (filter is required by supabase-js for delete)
+      await db.from('admin_activity').delete().not('id', 'is', null);
+    } catch (e) { console.warn('[notif] clear failed', e); }
+    activityCache = [];
+    try { renderBell(); } catch (_) {}
+  }
+  window.clearAllAdminActivity = clearAllAdminActivity;
+
+  if (bellBtn) {
+    bellBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      bellPanel.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      // NOTE: badge count is NOT cleared on open. It only clears when the
+      // creator clicks Save or Undo (see clearAllAdminActivity()).
+      loadNotifications();
+    });
+    const closeBell = () => { bellPanel.classList.add('hidden'); document.body.style.overflow = ''; };
+    document.getElementById('notif-bell-close')?.addEventListener('click', closeBell);
+    bellPanel.addEventListener('click', (e) => { if (e.target === bellPanel) closeBell(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !bellPanel.classList.contains('hidden')) closeBell(); });
+    loadNotifications();
+    setInterval(loadNotifications, 30000);
+  }
+
+  // --- "See More" + Multi-Link enhancement on projects -----------
+  function getProjectLinks(p) {
+    let links = [];
+    if (Array.isArray(p.links)) links = p.links;
+    else if (typeof p.links === 'string') { try { links = JSON.parse(p.links) || []; } catch{} }
+    if ((!links || links.length === 0) && p.link) links = [{ label: 'View Project', url: p.link }];
+    return links.filter(l => l && l.url);
+  }
+
+  function enhanceProjectCards() {
+    if (!projectBox) return;
+    const cards = projectBox.querySelectorAll(':scope > div.glass-card');
+    const list = (window.allProjects || []);
+    cards.forEach((card, idx) => {
+      const p = list[idx]; if (!p) return;
+      if (card.dataset.enhanced === '1') return;
+      card.dataset.enhanced = '1';
+      card.dataset.projectId = p.id;
+
+      // --- Description: see more (opens full-screen modal) ---
+      const desc = card.querySelector('p.text-sm.text-slate-600');
+      if (desc) {
+        const fullText = p.description || '';
+        const hasExtra = !!(p.extra_info && p.extra_info.trim().length);
+        const TRIM = 180;
+        const isLong = fullText.length > TRIM;
+        if (isLong || hasExtra) {
+          const short = isLong ? escapeHtml(fullText.slice(0, TRIM)).trim() + '…' : escapeHtml(fullText);
+          desc.innerHTML = `
+            <span class="proj-desc-short">${short}</span>
+            <button type="button" class="proj-desc-toggle ml-1 text-sky-600 hover:text-sky-800 font-bold underline-offset-2 hover:underline text-xs uppercase tracking-wider">See more</button>
+          `;
+          const btn = desc.querySelector('.proj-desc-toggle');
+          btn.addEventListener('click', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            openProjectInfoFullscreen(p);
+          });
+        }
+      }
+
+      // --- View Project: render multi-links ---
+      const links = getProjectLinks(p);
+      // Remove the legacy single anchor if present
+      const legacy = card.querySelector(':scope > a.glossy-btn');
+      if (legacy) legacy.remove();
+      if (links.length) {
+        const wrap = document.createElement('div');
+        wrap.className = 'relative z-10 mt-auto flex flex-col gap-2';
+        if (links.length === 1) {
+          wrap.innerHTML = `<a href="${links[0].url}" target="_blank" rel="noopener" class="glossy-btn text-center text-xs py-3.5 font-bold tracking-[0.2em] uppercase">${escapeHtml(links[0].label || 'View Project')}</a>`;
+        } else {
+          wrap.innerHTML = `
+            <a href="${links[0].url}" target="_blank" rel="noopener" class="glossy-btn text-center text-xs py-3.5 font-bold tracking-[0.2em] uppercase">${escapeHtml(links[0].label || 'View Project')}</a>
+            <div class="grid grid-cols-2 gap-2">
+              ${links.slice(1).map(l => `<a href="${l.url}" target="_blank" rel="noopener" class="text-center text-[10px] py-2 px-2 font-bold tracking-wider uppercase bg-white/80 hover:bg-white border border-sky-200 text-sky-800 rounded-full shadow-sm transition-all hover:shadow truncate">${escapeHtml(l.label || 'Open')}</a>`).join('')}
+            </div>`;
+        }
+        card.appendChild(wrap);
+      }
+
+      // --- Admin: Links + Info buttons ---
+      if (window.isAdmin) {
+        const adminBar = card.querySelector('.absolute.top-3.right-3');
+        if (adminBar && !adminBar.dataset.extended) {
+          adminBar.dataset.extended = '1';
+          adminBar.insertAdjacentHTML('afterbegin', `
+            <button onclick="manageProjectLinks('${p.id}')" class="bg-violet-500/90 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-lg border border-violet-400 font-bold hover:bg-violet-600 transition-colors backdrop-blur-sm" title="Manage Links">🔗</button>
+            <button onclick="editProjectExtraInfo('${p.id}')" class="bg-amber-500/90 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-lg border border-amber-400 font-bold hover:bg-amber-600 transition-colors backdrop-blur-sm" title="Edit More Info">ℹ</button>
+          `);
+        }
+      }
+    });
+  }
+
+  // Patch renderProjects to run enhancer after every render
+  if (typeof window.renderProjects === 'function') {
+    const _orig = window.renderProjects;
+    window.renderProjects = function(projects) {
+      const r = _orig.apply(this, arguments);
+      setTimeout(enhanceProjectCards, 0);
+      return r;
+    };
+  } else {
+    // renderProjects is a top-level function, not on window — observe DOM instead
+    if (projectBox) {
+      const mo = new MutationObserver(() => enhanceProjectCards());
+      mo.observe(projectBox, { childList: true });
+    }
+  }
+
+  // --- Admin: manage multi-links --------------------------------
+  // --- Reusable admin modal -------------------------------------
+  function openAdminModal({ title, subtitle, bodyHtml, saveLabel = 'Save', onSave }) {
+    const root = document.createElement('div');
+    root.className = 'fixed inset-0 z-[210] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4';
+    root.innerHTML = `
+      <div class="bg-white w-full max-w-xl max-h-[90vh] rounded-2xl shadow-2xl border border-sky-100 flex flex-col overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-sky-50 to-emerald-50 flex items-center justify-between">
+          <div>
+            <p class="text-sm font-black uppercase tracking-widest text-sky-900">${escapeHtml(title)}</p>
+            ${subtitle ? `<p class="text-xs text-slate-500 mt-0.5">${escapeHtml(subtitle)}</p>` : ''}
+          </div>
+          <button data-act="close" class="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6" data-body>${bodyHtml}</div>
+        <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+          <button data-act="close" class="px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-white border border-slate-200 text-slate-700 hover:bg-slate-100">Cancel</button>
+          <button data-act="save" class="px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-sky-600 text-white hover:bg-sky-700 shadow">${escapeHtml(saveLabel)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(root);
+    document.body.style.overflow = 'hidden';
+    const close = () => { root.remove(); document.body.style.overflow = ''; };
+    root.addEventListener('click', (e) => {
+      if (e.target === root) close();
+      if (e.target.dataset.act === 'close') close();
+      if (e.target.dataset.act === 'save') { Promise.resolve(onSave(root.querySelector('[data-body]'))).then((ok) => { if (ok !== false) close(); }); }
+    });
+    return { root, close };
+  }
+
+  // --- Admin: manage multiple "View Project" links --------------
+  window.manageProjectLinks = async function(projectId) {
+    const p = (window.allProjects || []).find(x => x.id === projectId);
+    if (!p) return alert('Project not found.');
+    const current = getProjectLinks(p);
+    const seed = current.length ? current : [{ label: 'View Project', url: '' }];
+
+    const rowHtml = (l = { label: '', url: '' }, i = 0) => `
+      <div class="link-row flex gap-2 items-center bg-slate-50 border border-slate-200 rounded-xl p-3">
+        <span class="text-[10px] font-black text-slate-400 w-5 text-center">${i + 1}</span>
+        <input type="text" class="link-label flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300" placeholder="Button label (e.g. Live Demo)" value="${escapeHtml(l.label || '')}">
+        <input type="url" class="link-url flex-[2] min-w-0 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300" placeholder="https://..." value="${escapeHtml(l.url || '')}">
+        <button type="button" class="remove-link w-9 h-9 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold flex items-center justify-center" title="Remove">✕</button>
+      </div>`;
+
+    const body = `
+      <div class="space-y-3">
+        <p class="text-xs text-slate-600 leading-relaxed bg-sky-50 border border-sky-100 rounded-lg p-3">
+          Add one or more buttons that visitors will see on this project. The <b>first link</b> becomes the big "View Project" button. Extra links show as smaller buttons underneath.
+        </p>
+        <div id="links-container" class="space-y-2">
+          ${seed.map((l, i) => rowHtml(l, i)).join('')}
+        </div>
+        <button type="button" id="add-link-btn" class="w-full py-2.5 rounded-xl border-2 border-dashed border-sky-300 text-sky-700 text-xs font-bold uppercase tracking-wider hover:bg-sky-50">+ Add another link</button>
+      </div>`;
+
+    openAdminModal({
+      title: 'Project Links',
+      subtitle: p.title,
+      saveLabel: 'Save links',
+      bodyHtml: body,
+      onSave: async (bodyEl) => {
+        const rows = [...bodyEl.querySelectorAll('.link-row')];
+        const links = rows.map(r => ({
+          label: r.querySelector('.link-label').value.trim() || 'Link',
+          url:   r.querySelector('.link-url').value.trim(),
+        })).filter(l => /^https?:\/\//i.test(l.url));
+        if (!links.length) { alert('Please add at least one valid link starting with http:// or https://'); return false; }
+        const primary = links[0].url;
+        const { error } = await db.from('projects').update({ links, link: primary }).eq('id', projectId);
+        if (error) { alert('Error: ' + error.message + '\n\nMake sure the "links" jsonb column exists on projects.'); return false; }
+        logActivity({ action: 'update', entity_type: 'project', entity_label: p.title, image_url: p.image_url, details: `Updated links (${links.length} total)` });
+        loadPortfolio();
+      }
+    });
+
+    // wire add/remove
+    const container = document.getElementById('links-container');
+    const reindex = () => [...container.children].forEach((row, i) => { row.querySelector('span').textContent = String(i + 1); });
+    document.getElementById('add-link-btn').addEventListener('click', () => {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = rowHtml({ label: '', url: '' }, container.children.length);
+      container.appendChild(tmp.firstElementChild);
+    });
+    container.addEventListener('click', (e) => {
+      if (e.target.classList.contains('remove-link')) {
+        if (container.children.length <= 1) { e.target.closest('.link-row').querySelectorAll('input').forEach(i => i.value = ''); return; }
+        e.target.closest('.link-row').remove();
+        reindex();
+      }
+    });
+  };
+
+  // --- Admin: edit "See more" extra info -----------------------
+  window.editProjectExtraInfo = async function(projectId) {
+    const p = (window.allProjects || []).find(x => x.id === projectId);
+    if (!p) return alert('Project not found.');
+    const body = `
+      <div class="space-y-3">
+        <p class="text-xs text-slate-600 leading-relaxed bg-amber-50 border border-amber-100 rounded-lg p-3">
+          Whatever you write here will show under a <b>"See more"</b> button on this project card. Use it for extra details: tech stack, what you learned, screenshots, links, etc. <b>Leave blank to hide</b> the "See more" button entirely.
+        </p>
+        <textarea id="extra-info-area" rows="10" class="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 leading-relaxed" placeholder="e.g.\n• Built with React + Tailwind\n• Took 3 weeks\n• Biggest challenge was ...">${escapeHtml(p.extra_info || '')}</textarea>
+        <p class="text-[10px] text-slate-400">Tip: line breaks are preserved.</p>
+      </div>`;
+    openAdminModal({
+      title: 'Extended Info',
+      subtitle: p.title,
+      saveLabel: 'Save info',
+      bodyHtml: body,
+      onSave: async (bodyEl) => {
+        const txt = bodyEl.querySelector('#extra-info-area').value;
+        const { error } = await db.from('projects').update({ extra_info: txt }).eq('id', projectId);
+        if (error) { alert('Error: ' + error.message + '\n\nMake sure the "extra_info" text column exists on projects.'); return false; }
+        logActivity({ action: 'update', entity_type: 'project', entity_label: p.title, image_url: p.image_url, details: txt.trim() ? 'Updated extended info' : 'Cleared extended info' });
+        loadPortfolio();
+      }
+    });
+  };
+
+  // --- Auto-log existing admin actions --------------------------
+  // Wrap deleteItem
+  if (typeof window.deleteItem === 'function') {
+    const _del = window.deleteItem;
+    window.deleteItem = async function(table, id) {
+      let label = id, image = null;
+      try {
+        const cache = ({ projects: window.allProjects, certificates: window.allCerts, hobbies: [], socials: window.socialsCache })[table] || [];
+        const it = cache.find(x => x && x.id === id);
+        if (it) { label = it.title || it.platform || id; image = it.image_url || it.cover_image || null; }
+      } catch{}
+      const r = await _del(table, id);
+      logActivity({ action: 'delete', entity_type: table.replace(/s$/, ''), entity_label: label, image_url: image });
+      return r;
+    };
+  }
+  // Wrap editProject
+  if (typeof window.editProject === 'function') {
+    const _ep = window.editProject;
+    window.editProject = async function(id) {
+      const r = await _ep(id);
+      const p = (window.allProjects || []).find(x => x.id === id);
+      logActivity({ action: 'update', entity_type: 'project', entity_label: p?.title || id, image_url: p?.image_url || null, details: 'Edited project details' });
+      return r;
+    };
+  }
+  // Hook the add-form submit (after it finishes successfully reload, we sniff)
+  const _adminForm = document.getElementById('admin-form');
+  if (_adminForm) {
+    _adminForm.addEventListener('submit', () => {
+      // give the existing handler a moment to insert
+      setTimeout(async () => {
+        try {
+          const type = document.getElementById('form-type')?.value;
+          const title = document.getElementById('input-title')?.value;
+          if (!type || !title) return;
+          // Find newest matching row to grab its image
+          const table = type === 'cert' ? 'certificates' : type === 'project' ? 'projects' : type === 'hobby' ? 'hobbies' : 'socials';
+          const { data } = await db.from(table).select('*').order('id', { ascending: false }).limit(1);
+          const row = (data || [])[0];
+          logActivity({
+            action: 'create', entity_type: type, entity_label: title,
+            image_url: row?.image_url || row?.cover_image || null,
+            details: `Added new ${type}`
+          });
+        } catch{}
+      }, 1200);
+    });
+  }
+})();
