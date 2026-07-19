@@ -2518,23 +2518,24 @@ window.openSocialPicker = function(socialId) {
             <div class="mt-2">
                 <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 px-1">Other Accounts</p>
                 ${others.map(acc => {
-                    const isInactive = acc.is_inactive;
                     return `
                     <div class="relative mb-2">
                         <a href="${acc.link}" target="_blank" rel="noopener"
-                           class="flex items-center justify-between gap-4 p-3 rounded-xl ${isInactive ? 'bg-slate-50 border border-slate-200 opacity-70' : 'bg-slate-50 border border-slate-200 hover:bg-slate-100'} transition-colors">
+                           class="flex items-center justify-between gap-4 p-3 rounded-xl bg-slate-50 border border-slate-200 opacity-70 hover:opacity-90 transition-opacity">
                             <div class="flex flex-col overflow-hidden flex-1">
-                                <span class="font-bold text-slate-600 truncate text-sm ${isInactive ? 'line-through decoration-slate-400' : ''}">${esc(acc.name || 'Account')}</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-slate-500 truncate text-sm line-through decoration-slate-400">${esc(acc.name || 'Account')}</span>
+                                    <span class="text-[9px] font-black uppercase tracking-widest bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap">Old account</span>
+                                </div>
                                 <span class="text-xs text-slate-400 truncate">${(acc.link || '').replace(/^https?:\/\//, '')}</span>
                             </div>
                             <div class="flex items-center gap-2 flex-shrink-0">
-                                ${isInactive ? `
                                 <div class="relative group/tip">
-                                    <span class="w-6 h-6 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-600 text-xs font-black cursor-default select-none">i</span>
+                                    <span class="w-5 h-5 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-600 text-[10px] font-black cursor-default select-none">i</span>
                                     <div class="absolute bottom-full right-0 mb-2 w-44 bg-slate-800 text-white text-[10px] font-semibold rounded-lg px-3 py-2 leading-snug opacity-0 group-hover/tip:opacity-100 pointer-events-none transition-opacity z-10 shadow-xl">
                                         This account is no longer active
                                     </div>
-                                </div>` : ''}
+                                </div>
                                 <span class="text-slate-400 font-bold text-sm">&rarr;</span>
                             </div>
                         </a>
