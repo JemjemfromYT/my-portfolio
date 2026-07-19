@@ -947,6 +947,9 @@
       /* Skeleton text rows */
       .sk-row{height:14px;border-radius:6px;background:linear-gradient(110deg,#e2e8f0 8%,#f1f5f9 18%,#e2e8f0 33%);
         background-size:200% 100%;animation:lqip-shimmer 1.4s linear infinite;margin:8px 0}
+      /* Section skeleton helpers */
+      .skel-card{border-radius:24px;background:linear-gradient(110deg,rgba(255,255,255,0.35) 8%,rgba(255,255,255,0.7) 18%,rgba(255,255,255,0.35) 33%);background-size:200% 100%;animation:lqip-shimmer 1.5s linear infinite;border:1px solid rgba(255,255,255,0.6)}
+      .skel-pill{border-radius:999px;background:linear-gradient(110deg,rgba(255,255,255,0.35) 8%,rgba(255,255,255,0.7) 18%,rgba(255,255,255,0.35) 33%);background-size:200% 100%;animation:lqip-shimmer 1.5s linear infinite;border:1px solid rgba(255,255,255,0.5)}
     </style>
 </head>
 <body class="min-h-screen antialiased">
@@ -1293,11 +1296,19 @@
         <div class="glass-card p-4 px-6 mb-8 flex flex-wrap gap-4 items-center bg-white/50">
             <span class="text-sm font-bold text-sky-900/60 uppercase tracking-widest">Filters:</span>
             <div id="project-filters" class="flex flex-wrap gap-2">
-                <p class="text-sm text-sky-700/60 font-medium italic">Loading stacks...</p>
+                <div class="skel-pill h-8 w-20"></div>
+                <div class="skel-pill h-8 w-24"></div>
+                <div class="skel-pill h-8 w-16"></div>
+                <div class="skel-pill h-8 w-20"></div>
             </div>
         </div>
         <div id="project-wrapper" class="section-clamp transition-all duration-500">
-            <div id="project-container" class="grid grid-cols-1 lg:grid-cols-2 gap-8"></div>
+            <div id="project-container" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="skel-card h-72"></div>
+                <div class="skel-card h-72"></div>
+                <div class="skel-card h-72"></div>
+                <div class="skel-card h-72"></div>
+            </div>
         </div>
         <div class="flex justify-center mt-8 relative z-20">
             <button id="view-all-projects-btn" class="bg-white/80 hover:bg-white text-sky-800 border border-white px-8 py-3 rounded-full text-sm font-bold tracking-widest uppercase shadow-md transition-all hover:scale-105 hover:shadow-lg">View All Projects</button>
@@ -1317,7 +1328,11 @@
             </div>
         </div>
         <div id="cert-wrapper" class="section-clamp transition-all duration-500">
-            <div id="cert-container" class="space-y-6"></div>
+            <div id="cert-container" class="space-y-6">
+                <div class="skel-card h-24"></div>
+                <div class="skel-card h-24"></div>
+                <div class="skel-card h-24"></div>
+            </div>
         </div>
         <div class="flex justify-center mt-8 relative z-20">
             <button id="view-all-cert-btn" class="bg-white/80 hover:bg-white text-sky-800 border border-white px-8 py-3 rounded-full text-sm font-bold tracking-widest uppercase shadow-md transition-all hover:scale-105 hover:shadow-lg">View All Certifications</button>
@@ -1331,7 +1346,11 @@
             <button id="add-hobby-btn" class="hidden glossy-btn-green text-sm px-6 py-2.5 font-bold whitespace-nowrap">+ Add Interest</button>
         </div>
         <div id="hobby-wrapper" class="section-clamp transition-all duration-500">
-            <div id="hobby-container" class="space-y-6"></div>
+            <div id="hobby-container" class="space-y-6">
+                <div class="skel-card h-20"></div>
+                <div class="skel-card h-20"></div>
+                <div class="skel-card h-20"></div>
+            </div>
         </div>
         <div class="flex justify-center mt-8 relative z-20">
             <button id="view-all-hobby-btn" class="bg-emerald-50/80 hover:bg-emerald-50 text-emerald-800 border border-white px-8 py-3 rounded-full text-sm font-bold tracking-widest uppercase shadow-md transition-all hover:scale-105 hover:shadow-lg">View All Interests</button>
@@ -1345,8 +1364,9 @@
             <button id="add-music-btn" class="hidden text-sm px-6 py-2.5 font-bold whitespace-nowrap bg-gradient-to-r from-violet-500 to-pink-500 text-white rounded-full hover:opacity-90 transition-opacity shadow-lg">+ Add Music</button>
         </div>
         <div id="music-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <!-- Music cards will be loaded from Supabase -->
-            <p class="text-violet-700/60 font-bold ml-4 col-span-full">Loading music...</p>
+            <div class="skel-card h-48"></div>
+            <div class="skel-card h-48"></div>
+            <div class="skel-card h-48"></div>
         </div>
         <p class="text-center text-sm text-slate-500 mt-6 italic">Click on a track to play. Special songs trigger unique visual experiences.</p>
     </section>
@@ -1414,7 +1434,12 @@
             <button id="add-social-btn" class="hidden glossy-btn text-sm px-6 py-2.5 font-bold whitespace-nowrap">+ Add Link</button>
         </div>
         <div id="social-wrapper" class="section-clamp transition-all duration-500">
-            <div id="social-container" class="flex flex-wrap gap-5 justify-center md:justify-start"></div>
+            <div id="social-container" class="flex flex-wrap gap-5 justify-center md:justify-start">
+                <div class="skel-pill h-16 w-36"></div>
+                <div class="skel-pill h-16 w-32"></div>
+                <div class="skel-pill h-16 w-40"></div>
+                <div class="skel-pill h-16 w-36"></div>
+            </div>
         </div>
         <div class="flex justify-center mt-8 relative z-20">
             <button id="view-all-social-btn" class="bg-white/80 hover:bg-white text-sky-800 border border-white px-8 py-3 rounded-full text-sm font-bold tracking-widest uppercase shadow-md transition-all hover:scale-105 hover:shadow-lg">View All</button>
