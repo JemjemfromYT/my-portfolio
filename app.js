@@ -784,8 +784,10 @@ function renderSocials(socials) {
 
     socialBox.innerHTML = socials.map(s => {
         const isMulti = s.mode === 'multi' && Array.isArray(s.accounts) && s.accounts.length > 0;
+        const mainAcc = isMulti ? s.accounts.find(a => a.is_main) || s.accounts[0] : null;
+        const otherCount = isMulti ? s.accounts.filter(a => !a.is_main).length : 0;
         const previewText = isMulti
-            ? `${s.accounts.length} accounts`
+            ? (mainAcc?.name ? mainAcc.name + (otherCount > 0 ? ` +${otherCount} more` : '') : `${s.accounts.length} accounts`)
             : (s.link || '').replace(/^https?:\/\//, '');
         const clickHandler = isMulti
             ? `onclick="openSocialPicker('${s.id}')"`
@@ -2492,15 +2494,52 @@ window.openSocialPicker = function(socialId) {
     if (accounts.length === 0) {
         list.innerHTML = '<p class="text-slate-500 italic text-sm">No accounts configured.</p>';
     } else {
-        list.innerHTML = accounts.map(acc => `
-            <a href="${acc.link}" target="_blank" rel="noopener" class="flex items-center justify-between gap-4 p-4 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-colors">
-                <div class="flex flex-col overflow-hidden">
-                    <span class="font-extrabold text-slate-800 truncate">${acc.name || 'Account'}</span>
-                    <span class="text-xs text-sky-700 truncate">${(acc.link || '').replace(/^https?:\/\//, '')}</span>
+        // Sort: main first, then others
+        const mainAcc = accounts.find(a => a.is_main) || accounts[0];
+        const others = accounts.filter(a => a !== mainAcc);
+
+        const mainHtml = `
+            <a href="${mainAcc.link}" target="_blank" rel="noopener"
+               class="flex items-center justify-between gap-4 p-4 rounded-xl bg-sky-600 hover:bg-sky-700 border border-sky-500 transition-colors group">
+                <div class="flex flex-col overflow-hidden flex-1">
+                    <div class="flex items-center gap-2 mb-0.5">
+                        <span class="font-extrabold text-white truncate">${escapeHtml(mainAcc.name || 'Main Account')}</span>
+                        <span class="text-[9px] font-black uppercase tracking-widest bg-white/20 text-white px-2 py-0.5 rounded-full flex-shrink-0">Main</span>
+                    </div>
+                    <span class="text-xs text-sky-100 truncate">${(mainAcc.link || '').replace(/^https?:\/\//, '')}</span>
                 </div>
-                <span class="text-sky-600 font-bold">&rarr;</span>
-            </a>
-        `).join('');
+                <span class="text-white font-bold">&rarr;</span>
+            </a>`;
+
+        const othersHtml = others.length ? `
+            <div class="mt-2">
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 px-1">Other Accounts</p>
+                ${others.map(acc => {
+                    const isInactive = acc.is_inactive;
+                    return `
+                    <div class="relative mb-2">
+                        <a href="${acc.link}" target="_blank" rel="noopener"
+                           class="flex items-center justify-between gap-4 p-3 rounded-xl ${isInactive ? 'bg-slate-50 border border-slate-200 opacity-70' : 'bg-slate-50 border border-slate-200 hover:bg-slate-100'} transition-colors">
+                            <div class="flex flex-col overflow-hidden flex-1">
+                                <span class="font-bold text-slate-600 truncate text-sm ${isInactive ? 'line-through decoration-slate-400' : ''}">${escapeHtml(acc.name || 'Account')}</span>
+                                <span class="text-xs text-slate-400 truncate">${(acc.link || '').replace(/^https?:\/\//, '')}</span>
+                            </div>
+                            <div class="flex items-center gap-2 flex-shrink-0">
+                                ${isInactive ? `
+                                <div class="relative group/tip">
+                                    <span class="w-6 h-6 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-600 text-xs font-black cursor-default select-none">i</span>
+                                    <div class="absolute bottom-full right-0 mb-2 w-44 bg-slate-800 text-white text-[10px] font-semibold rounded-lg px-3 py-2 leading-snug opacity-0 group-hover/tip:opacity-100 pointer-events-none transition-opacity z-10 shadow-xl">
+                                        This account is no longer active
+                                    </div>
+                                </div>` : ''}
+                                <span class="text-slate-400 font-bold text-sm">&rarr;</span>
+                            </div>
+                        </a>
+                    </div>`;
+                }).join('')}
+            </div>` : '';
+
+        list.innerHTML = mainHtml + othersHtml;
     }
     const modal = document.getElementById('social-picker-modal');
     modal.classList.remove('hidden');
@@ -2569,15 +2608,40 @@ function applySocialModeUI() {
 function renderSocialAccountsEditor(accounts) {
     const list = document.getElementById('social-accounts-list');
     list.innerHTML = '';
+    // Ensure exactly one is_main
+    const hasMain = accounts.some(a => a.is_main);
+    if (!hasMain && accounts.length > 0) accounts[0].is_main = true;
+
     accounts.forEach((acc, idx) => {
         const row = document.createElement('div');
-        row.className = 'flex gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-200';
+        row.className = 'flex flex-col gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200 ' + (acc.is_main ? 'border-sky-400 bg-sky-50' : '');
         row.innerHTML = `
-            <input type="text" placeholder="Custom name (e.g. Personal)" value="${(acc.name || '').replace(/"/g, '&quot;')}" class="social-acc-name flex-1 min-w-0 bg-white border border-slate-200 p-2 rounded-lg text-sm font-medium" />
-            <input type="url" placeholder="https://..." value="${(acc.link || '').replace(/"/g, '&quot;')}" class="social-acc-link flex-1 min-w-0 bg-white border border-slate-200 p-2 rounded-lg text-sm font-medium" />
-            <button type="button" class="bg-red-500 text-white rounded-lg w-8 h-8 flex items-center justify-center text-xs font-bold hover:bg-red-600">&times;</button>
+            <div class="flex gap-2 items-center">
+                <input type="text" placeholder="Name (e.g. Personal)" value="${(acc.name || '').replace(/"/g, '&quot;')}" class="social-acc-name flex-1 min-w-0 bg-white border border-slate-200 p-2 rounded-lg text-sm font-medium" />
+                <input type="url" placeholder="https://..." value="${(acc.link || '').replace(/"/g, '&quot;')}" class="social-acc-link flex-1 min-w-0 bg-white border border-slate-200 p-2 rounded-lg text-sm font-medium" />
+                <button type="button" class="social-acc-remove bg-red-500 text-white rounded-lg w-8 h-8 flex-shrink-0 flex items-center justify-center text-xs font-bold hover:bg-red-600">&times;</button>
+            </div>
+            <div class="flex gap-4 items-center px-1">
+                <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-sky-700">
+                    <input type="radio" name="social-main-pick" class="social-acc-main accent-sky-600 w-3.5 h-3.5" ${acc.is_main ? 'checked' : ''} />
+                    ⭐ Main account
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-amber-700">
+                    <input type="checkbox" class="social-acc-inactive accent-amber-500 w-3.5 h-3.5" ${acc.is_inactive ? 'checked' : ''} />
+                    No longer active
+                </label>
+            </div>
         `;
-        row.querySelector('button').onclick = () => row.remove();
+        row.querySelector('.social-acc-remove').onclick = () => { row.remove(); };
+        // When "Main" is chosen, restyle all rows
+        row.querySelector('.social-acc-main').onchange = () => {
+            document.querySelectorAll('#social-accounts-list > div').forEach(r => {
+                r.classList.remove('border-sky-400', 'bg-sky-50');
+                r.classList.add('bg-slate-50', 'border-slate-200');
+            });
+            row.classList.add('border-sky-400', 'bg-sky-50');
+            row.classList.remove('bg-slate-50', 'border-slate-200');
+        };
         list.appendChild(row);
     });
 }
@@ -2593,7 +2657,9 @@ function collectSocialAccountsFromUI() {
     const rows = document.querySelectorAll('#social-accounts-list > div');
     return Array.from(rows).map(r => ({
         name: r.querySelector('.social-acc-name').value.trim(),
-        link: r.querySelector('.social-acc-link').value.trim()
+        link: r.querySelector('.social-acc-link').value.trim(),
+        is_main: r.querySelector('.social-acc-main')?.checked || false,
+        is_inactive: r.querySelector('.social-acc-inactive')?.checked || false
     }));
 }
 
