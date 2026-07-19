@@ -1,0 +1,31 @@
+name: Keep Supabase Alive
+
+on:
+  schedule:
+    # Runs every 4 days at 08:00 UTC to prevent Supabase free tier from pausing
+    - cron: '0 8 */4 * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase database
+        run: |
+          echo "Pinging Supabase to prevent inactivity pause..."
+          
+          # Query the profile_info table (lightweight, always has data)
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://mpcjnyuczjukfazplqjc.supabase.co/rest/v1/profile_info?select=id&limit=1" \
+            -H "apikey: sb_publishable_S8r-c688VW112n85RRZ7Vw_e5p7W6Fr" \
+            -H "Authorization: Bearer sb_publishable_S8r-c688VW112n85RRZ7Vw_e5p7W6Fr")
+          
+          echo "HTTP status: $RESPONSE"
+          
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ Supabase is alive and responding!"
+          else
+            echo "⚠️  Unexpected response code: $RESPONSE"
+            echo "This may mean Supabase paused. Go to https://supabase.com/dashboard and resume the project."
+            exit 1
+          fi
