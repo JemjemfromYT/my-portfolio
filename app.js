@@ -2488,6 +2488,7 @@ window.editHobbyRank = async function(hobbyId, currentRank) {
 // SOCIAL PICKER (viewer) — opens when a multi-account container is clicked
 // ============================================
 window.openSocialPicker = function(socialId) {
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const social = socialsCache.find(s => String(s.id) === String(socialId));
     if (!social) return;
     document.getElementById('social-picker-title').textContent = social.platform;
@@ -2505,7 +2506,7 @@ window.openSocialPicker = function(socialId) {
                class="flex items-center justify-between gap-4 p-4 rounded-xl bg-sky-600 hover:bg-sky-700 border border-sky-500 transition-colors group">
                 <div class="flex flex-col overflow-hidden flex-1">
                     <div class="flex items-center gap-2 mb-0.5">
-                        <span class="font-extrabold text-white truncate">${escapeHtml(mainAcc.name || 'Main Account')}</span>
+                        <span class="font-extrabold text-white truncate">${esc(mainAcc.name || 'Main Account')}</span>
                         <span class="text-[9px] font-black uppercase tracking-widest bg-white/20 text-white px-2 py-0.5 rounded-full flex-shrink-0">Main</span>
                     </div>
                     <span class="text-xs text-sky-100 truncate">${(mainAcc.link || '').replace(/^https?:\/\//, '')}</span>
@@ -2523,7 +2524,7 @@ window.openSocialPicker = function(socialId) {
                         <a href="${acc.link}" target="_blank" rel="noopener"
                            class="flex items-center justify-between gap-4 p-3 rounded-xl ${isInactive ? 'bg-slate-50 border border-slate-200 opacity-70' : 'bg-slate-50 border border-slate-200 hover:bg-slate-100'} transition-colors">
                             <div class="flex flex-col overflow-hidden flex-1">
-                                <span class="font-bold text-slate-600 truncate text-sm ${isInactive ? 'line-through decoration-slate-400' : ''}">${escapeHtml(acc.name || 'Account')}</span>
+                                <span class="font-bold text-slate-600 truncate text-sm ${isInactive ? 'line-through decoration-slate-400' : ''}">${esc(acc.name || 'Account')}</span>
                                 <span class="text-xs text-slate-400 truncate">${(acc.link || '').replace(/^https?:\/\//, '')}</span>
                             </div>
                             <div class="flex items-center gap-2 flex-shrink-0">
