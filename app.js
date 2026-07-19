@@ -2488,7 +2488,7 @@ window.editHobbyRank = async function(hobbyId, currentRank) {
 // SOCIAL PICKER (viewer) — opens when a multi-account container is clicked
 // ============================================
 window.openSocialPicker = function(socialId) {
-    const social = socialsCache.find(s => s.id === socialId);
+    const social = socialsCache.find(s => String(s.id) === String(socialId));
     if (!social) return;
     document.getElementById('social-picker-title').textContent = social.platform;
     const list = document.getElementById('social-picker-list');
