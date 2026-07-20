@@ -559,14 +559,20 @@ function renderProjects(projects) {
 
     const mainHtml = mainProjects.map(p => buildProjectCard(p, false)).join('');
     const othersHtml = otherProjects.length ? `
-        <div class="col-span-full mt-4 mb-2">
-            <div class="flex items-center gap-3">
-                <h3 class="text-lg font-black text-violet-700 uppercase tracking-widest">Others</h3>
-                <span class="flex-1 h-px bg-violet-200"></span>
-                <span class="text-[10px] text-violet-500 font-bold uppercase tracking-widest">Demos &amp; Experiments</span>
+        <div class="col-span-full mt-10">
+            <div class="rounded-2xl border-2 border-violet-200 bg-violet-50/60 p-6">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-1 h-6 rounded-full bg-violet-500"></div>
+                    <div>
+                        <h3 class="text-base font-black text-violet-800 uppercase tracking-widest leading-none">Others</h3>
+                        <p class="text-[10px] text-violet-400 font-semibold mt-0.5">Demos &amp; experiments — still playable, still cool</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    ${otherProjects.map(p => buildProjectCard(p, true)).join('')}
+                </div>
             </div>
         </div>
-        ${otherProjects.map(p => buildProjectCard(p, true)).join('')}
     ` : '';
 
     projectBox.innerHTML = mainHtml + othersHtml;
