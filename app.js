@@ -8,6 +8,7 @@ const stealthBtn = document.getElementById('stealth-btn');
 const adminIndicator = document.getElementById('admin-indicator');
 
 const projectBox = document.getElementById('project-container');
+const othersContainer = document.getElementById('others-container');
 const projectFiltersBox = document.getElementById('project-filters');
 const certBox = document.getElementById('cert-container');
 const hobbyBox = document.getElementById('hobby-container');
@@ -555,27 +556,32 @@ function renderProjects(projects) {
     };
 
     const mainProjects = filteredProjects.filter(p => !p.section || p.section === 'projects');
-    const otherProjects = filteredProjects.filter(p => p.section === 'others');
+    const otherProjects = allProjects.filter(p => p.section === 'others');
 
-    const mainHtml = mainProjects.map(p => buildProjectCard(p, false)).join('');
-    const othersHtml = otherProjects.length ? `
-        <div class="col-span-full mt-10">
-            <div class="rounded-2xl border-2 border-violet-200 bg-violet-50/60 p-6">
-                <div class="flex items-center gap-3 mb-5">
-                    <div class="w-1 h-6 rounded-full bg-violet-500"></div>
-                    <div>
-                        <h3 class="text-base font-black text-violet-800 uppercase tracking-widest leading-none">Others</h3>
-                        <p class="text-[10px] text-violet-400 font-semibold mt-0.5">Demos &amp; experiments — still playable, still cool</p>
+    projectBox.innerHTML = mainProjects.map(p => buildProjectCard(p, false)).join('');
+
+    if (othersContainer) {
+        if (otherProjects.length) {
+            othersContainer.classList.remove('hidden');
+            othersContainer.innerHTML = `
+                <div class="rounded-2xl border-2 border-violet-200 bg-violet-50/60 p-6">
+                    <div class="flex items-center gap-3 mb-5">
+                        <div class="w-1 h-8 rounded-full bg-violet-500 flex-shrink-0"></div>
+                        <div>
+                            <h3 class="text-xl font-black text-violet-800 uppercase tracking-widest leading-none">Others</h3>
+                            <p class="text-xs text-violet-400 font-semibold mt-1">Demos &amp; experiments — unfinished but still worth a look</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        ${otherProjects.map(p => buildProjectCard(p, true)).join('')}
                     </div>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    ${otherProjects.map(p => buildProjectCard(p, true)).join('')}
-                </div>
-            </div>
-        </div>
-    ` : '';
-
-    projectBox.innerHTML = mainHtml + othersHtml;
+            `;
+        } else {
+            othersContainer.classList.add('hidden');
+            othersContainer.innerHTML = '';
+        }
+    }
 }
 
 window.editProjectOrder = async function(projectId, currentOrder) {
