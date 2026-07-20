@@ -527,13 +527,14 @@ function renderProjects(projects) {
     }
 
     // Sort by display_order but don't show the number
-    projectBox.innerHTML = filteredProjects.map(p => {
+    const buildProjectCard = (p, isOther = false) => {
         const langsHtml = p.languages
             ? p.languages.split(',').map(l => `<span class="bg-white/80 text-sky-900 text-[10px] px-3 py-1.5 rounded-md font-bold border border-white shadow-sm tracking-widest uppercase">${l.trim()}</span>`).join('')
             : '';
         return `
-            <div class="glass-card p-6 md:p-8 flex flex-col group relative overflow-hidden bg-white/40">
+            <div class="glass-card p-6 md:p-8 flex flex-col group relative overflow-hidden ${isOther ? 'bg-violet-50/60 border border-violet-200/60' : 'bg-white/40'}">
                 <div class="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/70 to-transparent pointer-events-none"></div>
+                ${isOther ? `<span class="absolute top-3 left-3 z-20 text-[9px] font-black uppercase tracking-widest bg-violet-500 text-white px-2.5 py-1 rounded-full shadow">Demo</span>` : ''}
                 <div class="relative mb-6 rounded-2xl overflow-hidden shadow-md border border-white">
                     <img loading="lazy" decoding="async" data-src="${p.image_url}" class="h-56 w-full object-cover transition-transform duration-700 group-hover:scale-105">
                     <div class="absolute inset-0 bg-gradient-to-t from-sky-900/40 to-transparent pointer-events-none"></div>
@@ -548,10 +549,27 @@ function renderProjects(projects) {
                 <h3 class="text-2xl font-extrabold text-sky-950 mb-4 relative z-10 tracking-tight aero-title">${p.title}</h3>
                 <div class="flex flex-wrap gap-2 mb-4 relative z-10">${langsHtml}</div>
                 <p class="text-sm text-slate-600 font-medium mb-8 flex-1 relative z-10 leading-relaxed">${p.description || ''}</p>
-                ${p.link ? `<a href="${p.link}" target="_blank" class="glossy-btn text-center text-xs py-3.5 font-bold relative z-10 tracking-[0.2em] uppercase">View Project</a>` : ''}
+                ${p.link ? `<a href="${p.link}" target="_blank" class="glossy-btn text-center text-xs py-3.5 font-bold relative z-10 tracking-[0.2em] uppercase">${isOther ? 'View Demo' : 'View Project'}</a>` : ''}
             </div>
         `;
-    }).join('');
+    };
+
+    const mainProjects = filteredProjects.filter(p => !p.section || p.section === 'projects');
+    const otherProjects = filteredProjects.filter(p => p.section === 'others');
+
+    const mainHtml = mainProjects.map(p => buildProjectCard(p, false)).join('');
+    const othersHtml = otherProjects.length ? `
+        <div class="col-span-full mt-4 mb-2">
+            <div class="flex items-center gap-3">
+                <h3 class="text-lg font-black text-violet-700 uppercase tracking-widest">Others</h3>
+                <span class="flex-1 h-px bg-violet-200"></span>
+                <span class="text-[10px] text-violet-500 font-bold uppercase tracking-widest">Demos &amp; Experiments</span>
+            </div>
+        </div>
+        ${otherProjects.map(p => buildProjectCard(p, true)).join('')}
+    ` : '';
+
+    projectBox.innerHTML = mainHtml + othersHtml;
 }
 
 window.editProjectOrder = async function(projectId, currentOrder) {
@@ -585,7 +603,9 @@ window.editProject = async function(projectId) {
             image_url = db.storage.from('portfolio-assets').getPublicUrl(fileName).data.publicUrl;
         }
     }
-    const { error } = await db.from('projects').update({ title, languages, description, link, image_url }).eq('id', projectId);
+    const sectionChoice = confirm(`Move to "Others (Demo)" section?\nOK = Others/Demo   Cancel = keep in Projects`);
+    const section = sectionChoice ? 'others' : (p.section || 'projects');
+    const { error } = await db.from('projects').update({ title, languages, description, link, image_url, section }).eq('id', projectId);
     if (error) alert('Error: ' + error.message);
     else {
         window.logAdminActivity?.({
@@ -1341,12 +1361,16 @@ function openModal(type) {
     socialFields.classList.add('hidden');
     orderField.classList.add('hidden');
 
+    const sectionField = document.getElementById('section-field');
+    sectionField?.classList.add('hidden');
+
     if (type === 'project') {
         catLabel.innerText = "Languages (Comma Separated)";
         titleLabel.innerText = "Project Title";
         descField.classList.remove('hidden');
         urlField.classList.remove('hidden');
         orderField.classList.remove('hidden');
+        sectionField?.classList.remove('hidden');
     } else if (type === 'social') {
         catContainer.classList.add('hidden');
         inputCat.removeAttribute('required');
@@ -1397,13 +1421,15 @@ adminForm.addEventListener('submit', async (e) => {
 
     let dbError;
     if (type === 'project') {
+        const section = document.getElementById('input-section')?.value || 'projects';
         const { error } = await db.from('projects').insert([{ 
             languages: category, 
             title, 
             description, 
             link: url, 
             image_url: publicUrl,
-            display_order: parseInt(displayOrder) || 0
+            display_order: parseInt(displayOrder) || 0,
+            section
         }]);
         dbError = error;
     } else if (type === 'cert') {
