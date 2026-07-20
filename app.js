@@ -533,7 +533,7 @@ function renderProjects(projects) {
             ? p.languages.split(',').map(l => `<span class="bg-white/80 text-sky-900 text-[10px] px-3 py-1.5 rounded-md font-bold border border-white shadow-sm tracking-widest uppercase">${l.trim()}</span>`).join('')
             : '';
         return `
-            <div class="glass-card p-6 md:p-8 flex flex-col group relative overflow-hidden ${isOther ? 'bg-violet-50/60 border border-violet-200/60' : 'bg-white/40'}">
+            <div class="glass-card p-6 md:p-8 flex flex-col group relative overflow-hidden ${isOther ? 'bg-violet-50/60 border border-violet-200/60' : 'bg-white/40'}" data-project-id="${p.id}">
                 <div class="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/70 to-transparent pointer-events-none"></div>
                 ${isOther ? `<span class="absolute top-3 left-3 z-20 text-[9px] font-black uppercase tracking-widest bg-violet-500 text-white px-2.5 py-1 rounded-full shadow">Demo</span>` : ''}
                 <div class="relative mb-6 rounded-2xl overflow-hidden shadow-md border border-white">
@@ -3005,14 +3005,18 @@ window.saveSocialEdit = async function() {
   }
 
   function enhanceProjectCards() {
-    if (!projectBox) return;
-    const cards = projectBox.querySelectorAll(':scope > div.glass-card');
     const list = (window.allProjects || []);
-    cards.forEach((card, idx) => {
-      const p = list[idx]; if (!p) return;
+    // Collect cards from both main projects box AND others container
+    const allCards = [
+      ...(projectBox ? projectBox.querySelectorAll(':scope > div.glass-card[data-project-id]') : []),
+      ...(othersContainer ? othersContainer.querySelectorAll('div.glass-card[data-project-id]') : []),
+    ];
+    allCards.forEach((card) => {
+      const pid = card.dataset.projectId;
+      const p = list.find(x => String(x.id) === String(pid));
+      if (!p) return;
       if (card.dataset.enhanced === '1') return;
       card.dataset.enhanced = '1';
-      card.dataset.projectId = p.id;
 
       // --- Description: see more (opens full-screen modal) ---
       const desc = card.querySelector('p.text-sm.text-slate-600');
@@ -3079,9 +3083,12 @@ window.saveSocialEdit = async function() {
     };
   } else {
     // renderProjects is a top-level function, not on window — observe DOM instead
+    const moOptions = { childList: true, subtree: true };
     if (projectBox) {
-      const mo = new MutationObserver(() => enhanceProjectCards());
-      mo.observe(projectBox, { childList: true });
+      new MutationObserver(() => enhanceProjectCards()).observe(projectBox, moOptions);
+    }
+    if (othersContainer) {
+      new MutationObserver(() => enhanceProjectCards()).observe(othersContainer, moOptions);
     }
   }
 
