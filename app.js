@@ -1742,24 +1742,28 @@ window.playMusic = function(id, audioUrl, title) {
     // Set audio source
     try { styxAudio.pause(); } catch (e) {}
     styxAudio.src = audioUrl;
-    styxAudio.load();
 
     // Update player bar
     musicTitle.textContent = title;
     musicPlayerBar.classList.add('active');
 
-    // Start playback
-    styxAudio.play().then(() => {
-        playIcon.innerHTML = '&#10074;&#10074;'; // Pause icon
-        if (isStyxHelix) {
-            activateStyxHelixMode();
-        } else if (isSacredTorch) {
-            activateSacredTorchMode();
-        }
-    }).catch(err => {
-        console.error('Playback error for', title, audioUrl, err);
-        alert(`Could not play "${title}". ${err.message || 'Check that the audio URL is valid and publicly accessible.'}`);
-    });
+    // Start playback — wait for canplay to avoid AbortError race on src change
+    const startPlay = () => {
+        styxAudio.play().then(() => {
+            playIcon.innerHTML = '&#10074;&#10074;'; // Pause icon
+            if (isStyxHelix) {
+                activateStyxHelixMode();
+            } else if (isSacredTorch) {
+                activateSacredTorchMode();
+            }
+        }).catch(err => {
+            if (err.name === 'AbortError') return; // normal: play interrupted by src/pause change
+            console.error('Playback error for', title, audioUrl, err);
+            alert(`Could not play "${title}". ${err.message || 'Check that the audio URL is valid and publicly accessible.'}`);
+        });
+    };
+    styxAudio.addEventListener('canplay', startPlay, { once: true });
+    styxAudio.load();
 }
 
 // ============================================
