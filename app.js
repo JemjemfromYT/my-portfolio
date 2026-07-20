@@ -953,23 +953,35 @@ notifYes.addEventListener('click', () => {
     notifPinInput.focus();
 });
 
-notifSubmit.addEventListener('click', () => {
-    if (notifPinInput.value === "2027") {
-        isAdmin = true;
-        window.isAdmin = true;
-        adminIndicator.classList.remove('hidden');
-        document.getElementById('storage-tracker')?.classList.remove('hidden');
-        [addProjectBtn, addCertBtn, addHobbyBtn, addSocialBtn, editProfileBtn, editQuoteBtn, editWisdomBtn, addMusicBtn, document.getElementById('edit-avatar-btn')].forEach(btn => btn?.classList.remove('hidden'));
-        loadPortfolio();
-        loadStorageUsage();
-        closeSystemNotif();
-        // Creator system: snapshot current state + announce review notice + reveal Creator button
-        onAdminLogin();
-    } else {
+notifSubmit.addEventListener('click', async () => {
+    const code = notifPinInput.value.trim();
+    if (!code) return;
+    notifSubmit.disabled = true;
+    notifSubmit.textContent = 'VERIFYING…';
+    try {
+        const { data, error } = await db.rpc('verify_creator_code', { code });
+        if (!error && data === true) {
+            isAdmin = true;
+            window.isAdmin = true;
+            adminIndicator.classList.remove('hidden');
+            document.getElementById('storage-tracker')?.classList.remove('hidden');
+            [addProjectBtn, addCertBtn, addHobbyBtn, addSocialBtn, editProfileBtn, editQuoteBtn, editWisdomBtn, addMusicBtn, document.getElementById('edit-avatar-btn')].forEach(btn => btn?.classList.remove('hidden'));
+            loadPortfolio();
+            loadStorageUsage();
+            closeSystemNotif();
+            onAdminLogin();
+        } else {
+            notifPinInput.value = "";
+            notifPinInput.placeholder = "ACCESS DENIED";
+            notifPinInput.classList.add('animate-pulse', 'border-red-500', 'text-red-500');
+            setTimeout(() => notifPinInput.classList.remove('animate-pulse', 'border-red-500', 'text-red-500'), 500);
+        }
+    } catch (e) {
         notifPinInput.value = "";
-        notifPinInput.placeholder = "ACCESS DENIED";
-        notifPinInput.classList.add('animate-pulse', 'border-red-500', 'text-red-500');
-        setTimeout(() => notifPinInput.classList.remove('animate-pulse', 'border-red-500', 'text-red-500'), 500);
+        notifPinInput.placeholder = "ERROR — TRY AGAIN";
+    } finally {
+        notifSubmit.disabled = false;
+        notifSubmit.textContent = 'AUTHENTICATE';
     }
 });
 
