@@ -959,7 +959,7 @@ notifSubmit.addEventListener('click', async () => {
     notifSubmit.disabled = true;
     notifSubmit.textContent = 'VERIFYING…';
     try {
-        const { data, error } = await db.rpc('verify_creator_code', { code });
+        const { data, error } = await db.rpc('verify_admin_code', { code });
         if (!error && data === true) {
             isAdmin = true;
             window.isAdmin = true;
