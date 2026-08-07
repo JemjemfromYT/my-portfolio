@@ -4,6 +4,81 @@ const supabaseUrl = 'https://mpcjnyuczjukfazplqjc.supabase.co';
 const supabaseKey = 'sb_publishable_S8r-c688VW112n85RRZ7Vw_e5p7W6Fr'; 
 const db = window.supabase.createClient(supabaseUrl, supabaseKey);
 
+const SUPABASE_TIMEOUT_MS = 9000;
+const RELIABILITY_STORAGE_KEY = 'portfolio-reliability-dismissed';
+const reliabilityBanner = document.getElementById('supabase-status-banner');
+const reliabilityMessage = document.getElementById('supabase-status-message');
+const reliabilityRetry = document.getElementById('supabase-status-retry');
+const reliabilityDismiss = document.getElementById('supabase-status-dismiss');
+let supabaseUnavailable = false;
+let portfolioLoadInFlight = null;
+
+function setSupabaseStatus(message, visible = true) {
+    supabaseUnavailable = visible;
+    if (!reliabilityBanner) return;
+    reliabilityBanner.hidden = !visible;
+    reliabilityBanner.classList.toggle('is-hidden', !visible);
+    if (reliabilityMessage && message) reliabilityMessage.textContent = message;
+}
+
+function describeSupabaseFailure(error) {
+    const text = String(error?.message || error || '').toLowerCase();
+    return text.includes('timeout') || text.includes('fetch') || text.includes('network')
+        ? 'Supabase may be paused or unreachable right now.'
+        : 'Supabase returned an error while loading portfolio data.';
+}
+
+async function withSupabaseTimeout(request, label) {
+    let timer;
+    try {
+        const result = await Promise.race([
+            request,
+            new Promise((_, reject) => {
+                timer = setTimeout(() => reject(new Error(`${label} timed out`)), SUPABASE_TIMEOUT_MS);
+            })
+        ]);
+        if (result?.error) throw result.error;
+        return result;
+    } catch (error) {
+        setSupabaseStatus(`${describeSupabaseFailure(error)} Showing available local content.`);
+        console.warn(`[portfolio] ${label} failed`, error);
+        return { data: null, error };
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+function queryTable(table, buildQuery, label = table) {
+    try {
+        return withSupabaseTimeout(buildQuery(db.from(table)), label);
+    } catch (error) {
+        return withSupabaseTimeout(Promise.reject(error), label);
+    }
+}
+
+function attachMediaFallbacks(root = document) {
+    root.querySelectorAll('img, video, audio').forEach(media => {
+        if (media.dataset.reliabilityBound) return;
+        media.dataset.reliabilityBound = '1';
+        media.addEventListener('error', () => {
+            media.classList.add('media-load-error');
+            media.closest('[data-media-card]')?.classList.add('media-card-error');
+            if (media.tagName === 'IMG') {
+                media.alt = media.alt || 'Image unavailable';
+                media.removeAttribute('data-src');
+            }
+            if (media.tagName === 'VIDEO' || media.tagName === 'AUDIO') media.pause();
+        });
+        media.addEventListener('loadeddata', () => media.classList.remove('media-load-error'));
+    });
+}
+
+reliabilityRetry?.addEventListener('click', () => loadPortfolio());
+reliabilityDismiss?.addEventListener('click', () => {
+    reliabilityBanner?.classList.add('is-hidden');
+    if (reliabilityBanner) reliabilityBanner.hidden = true;
+});
+
 const stealthBtn = document.getElementById('stealth-btn');
 const adminIndicator = document.getElementById('admin-indicator');
 
@@ -246,7 +321,7 @@ let currentLightboxImages = [];
 let currentLightboxIndex = 0;
 
 async function loadProfileInfo() {
-    const { data } = await db.from('profile_info').select('*').eq('id', 1).single();
+    const { data } = await queryTable('profile_info', query => query.select('*').eq('id', 1).single(), 'profile');
     if (data) {
         profileData = data;
         renderProfileInfo(data);
@@ -290,7 +365,7 @@ if (editAvatarBtn && inputAvatarFile) {
 }
 
 async function loadSiteSettings() {
-    const { data } = await db.from('site_settings').select('*').eq('id', 1).single();
+    const { data } = await queryTable('site_settings', query => query.select('*').eq('id', 1).single(), 'site settings');
     if (data) {
         siteSettings = data;
         if (quoteText && data.life_quote) {
@@ -300,8 +375,8 @@ async function loadSiteSettings() {
 }
 
 async function loadWisdomSlides() {
-    const { data } = await db.from('wisdom_slides').select('*').order('display_order', { ascending: true });
-    wisdomSlides = data || [
+    const { data } = await queryTable('wisdom_slides', query => query.select('*').order('display_order', { ascending: true }), 'wisdom slides');
+    wisdomSlides = data?.length ? data : [
         { id: 1, text: "If you're going through hell", display_order: 1 },
         { id: 2, text: "Keep going", display_order: 2 },
         { id: 3, text: "Why would you stop in hell", display_order: 3 }
@@ -365,7 +440,7 @@ setInterval(() => {
 }, 5000);
 
 async function loadMusic() {
-    const { data } = await db.from('music').select('*').order('created_at', { ascending: false });
+    const { data } = await queryTable('music', query => query.select('*').order('created_at', { ascending: false }), 'music');
     allMusic = data || [];
     renderMusic(allMusic);
     
@@ -448,30 +523,42 @@ function renderMusic(music) {
 }
 
 async function loadPortfolio() {
-    await loadProfileInfo();
-    await loadSiteSettings();
-    await loadWisdomSlides();
-    await loadMusic();
-    
-    // Projects sorted by display_order (custom order)
-    const { data: projects } = await db.from('projects').select('*').order('display_order', { ascending: true });
-    allProjects = projects || [];
-    window.allProjects = allProjects;
-    renderProjects(allProjects);
+    if (portfolioLoadInFlight) return portfolioLoadInFlight;
+    portfolioLoadInFlight = (async () => {
+        setSupabaseStatus('', false);
+        await Promise.allSettled([loadProfileInfo(), loadSiteSettings(), loadWisdomSlides(), loadMusic()]);
 
-    const { data: certs } = await db.from('certificates').select('*');
-    allCerts = certs || [];
-    window.allCerts = allCerts;
-    renderCertificates(allCerts);
+        const [{ data: projects }, { data: certs }, { data: hobbies }, { data: socials }] = await Promise.all([
+            queryTable('projects', query => query.select('*').order('display_order', { ascending: true }), 'projects'),
+            queryTable('certificates', query => query.select('*'), 'certificates'),
+            queryTable('hobbies', query => query.select('*').order('rank', { ascending: true }), 'hobbies'),
+            queryTable('socials', query => query.select('*'), 'socials')
+        ]);
 
-    const { data: hobbies } = await db.from('hobbies').select('*').order('rank', { ascending: true });
-    window.allHobbies = hobbies || [];
-    renderHobbies(hobbies || []);
+        allProjects = projects || [];
+        window.allProjects = allProjects;
+        renderProjects(allProjects);
 
-    const { data: socials } = await db.from('socials').select('*');
-    socialsCache = socials || [];
-    window.socialsCache = socialsCache;
-    renderSocials(socialsCache);
+        allCerts = certs || [];
+        window.allCerts = allCerts;
+        renderCertificates(allCerts);
+
+        window.allHobbies = hobbies || [];
+        renderHobbies(hobbies || []);
+
+        socialsCache = socials || [];
+        window.socialsCache = socialsCache;
+        renderSocials(socialsCache);
+        attachMediaFallbacks();
+    })().catch(error => {
+        setSupabaseStatus(`${describeSupabaseFailure(error)} Showing available local content.`);
+        console.warn('[portfolio] initialization failed', error);
+    }).finally(() => {
+        portfolioLoadInFlight = null;
+        document.getElementById('app-splash')?.classList.add('hide');
+        attachMediaFallbacks();
+    });
+    return portfolioLoadInFlight;
 }
 
 async function toggleVisibility(tableName, categoryValue, currentStatus, colName) {
@@ -1496,25 +1583,33 @@ window.openGallery = async function(hobbyId, title, coverImgUrl) {
     currentHobbyId = hobbyId;
     document.getElementById('gallery-title').innerText = title;
     const imgContainer = document.getElementById('gallery-images');
+    const galleryLoading = document.getElementById('gallery-loading');
     const addBtn = document.getElementById('gallery-add-btn');
+    const galleryModal = document.getElementById('gallery-modal');
 
     if (addBtn) isAdmin ? addBtn.classList.remove('hidden') : addBtn.classList.add('hidden');
+    if (galleryLoading) galleryLoading.classList.remove('is-hidden');
+    if (imgContainer) {
+        imgContainer.setAttribute('aria-busy', 'true');
+        imgContainer.innerHTML = `<div class="relative group cursor-pointer hover:scale-105 transition-transform duration-300"><img loading="eager" decoding="async" src="${coverImgUrl}" alt="${title} cover" class="max-h-96 w-auto rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/20"></div>`;
+    }
 
-    imgContainer.innerHTML = `<div class="relative group cursor-pointer hover:scale-105 transition-transform duration-300"><img loading="lazy" decoding="async" data-src="${coverImgUrl}" class="max-h-96 w-auto rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/20"></div>`;
-
-    document.getElementById('gallery-modal').classList.remove('hidden');
-    document.getElementById('gallery-modal').classList.add('flex');
+    galleryModal.classList.remove('hidden');
+    galleryModal.classList.add('flex');
 
     const { data: extraImages } = await db.from('hobby_gallery').select('id, image_url, media_type').eq('hobby_id', hobbyId);
     if (extraImages) extraImages.forEach(img => {
         const url = img.image_url || '';
         const isVideo = (img.media_type === 'video') || /\.(mp4|webm|ogg|mov|m4v)(\?|$)/i.test(url);
         const media = isVideo
-            ? `<video src="${url}" controls playsinline class="max-h-96 w-auto rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/20 bg-black"></video>`
-            : `<img loading="lazy" decoding="async" data-src="${url}" class="max-h-96 w-auto rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/20">`;
+            ? `<video src="${url}" controls playsinline preload="metadata" class="max-h-96 w-auto rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/20 bg-black"></video>`
+            : `<img loading="eager" decoding="async" src="${url}" alt="${title} gallery media" class="max-h-96 w-auto rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/20">`;
         const adminDel = isAdmin ? `<button onclick="deleteGalleryItem('${img.id}', '${hobbyId}', '${h_safeTitle(title)}', '${coverImgUrl}')" class="absolute top-2 right-2 bg-red-500/95 text-white rounded-full w-9 h-9 flex items-center justify-center text-base shadow-lg border border-red-400 font-bold z-20 hover:bg-red-600">&#x2715;</button>` : '';
         imgContainer.innerHTML += `<div class="relative group cursor-pointer hover:scale-105 transition-transform duration-300">${media}${adminDel}</div>`;
     });
+    imgContainer.setAttribute('aria-busy', 'false');
+    galleryLoading?.classList.add('is-hidden');
+    attachMediaFallbacks(galleryModal);
 }
 
 function h_safeTitle(t) { return (t || '').replace(/'/g, "\\'"); }
@@ -1714,8 +1809,51 @@ if (wisdomForm) {
 // MUSIC PLAYBACK & STYX HELIX MODE (OPTIMIZED)
 // ============================================
 
+const MEDIA_STATE_KEY = 'portfolio-media-state';
+let mediaWasPlayingBeforeHidden = false;
+
+function saveMediaState() {
+    if (!styxAudio || !currentPlayingMusic) return;
+    try {
+        sessionStorage.setItem(MEDIA_STATE_KEY, JSON.stringify({
+            ...currentPlayingMusic,
+            currentTime: Number.isFinite(styxAudio.currentTime) ? styxAudio.currentTime : 0,
+            wasPlaying: !styxAudio.paused
+        }));
+    } catch (error) {
+        console.warn('[portfolio] media state could not be saved', error);
+    }
+}
+
+function readMediaState() {
+    try { return JSON.parse(sessionStorage.getItem(MEDIA_STATE_KEY) || 'null'); }
+    catch (_) { return null; }
+}
+
+async function attemptMediaResume() {
+    if (!styxAudio || !currentPlayingMusic || !mediaWasPlayingBeforeHidden) return;
+    try {
+        await styxAudio.play();
+        playIcon.innerHTML = '&#10074;&#10074;';
+    } catch (error) {
+        if (error?.name !== 'NotAllowedError') console.warn('[portfolio] media resume failed', error);
+        setSupabaseStatus('Your browser blocked automatic media resume. Press Play once to continue.', true);
+    }
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        mediaWasPlayingBeforeHidden = Boolean(styxAudio && !styxAudio.paused);
+        saveMediaState();
+    } else {
+        const saved = readMediaState();
+        if (saved?.id && !currentPlayingMusic && saved.audioUrl) playMusic(saved.id, saved.audioUrl, saved.title, saved.currentTime);
+        else attemptMediaResume();
+    }
+});
+
 // Play music function
-window.playMusic = function(id, audioUrl, title) {
+window.playMusic = function(id, audioUrl, title, restoreTime = null) {
     currentPlayingMusic = { id, audioUrl, title };
 
     if (!audioUrl) {
@@ -1749,7 +1887,14 @@ window.playMusic = function(id, audioUrl, title) {
 
     // Start playback — wait for canplay to avoid AbortError race on src change
     const startPlay = () => {
+        const saved = readMediaState();
+        const seekTime = restoreTime ?? (saved?.id === id ? Number(saved.currentTime) : 0);
+        if (Number.isFinite(seekTime) && seekTime > 0) {
+            try { styxAudio.currentTime = seekTime; } catch (_) {}
+        }
         styxAudio.play().then(() => {
+            mediaWasPlayingBeforeHidden = true;
+            saveMediaState();
             playIcon.innerHTML = '&#10074;&#10074;'; // Pause icon
             if (isStyxHelix) {
                 activateStyxHelixMode();
@@ -1759,7 +1904,7 @@ window.playMusic = function(id, audioUrl, title) {
         }).catch(err => {
             if (err.name === 'AbortError') return; // normal: play interrupted by src/pause change
             console.error('Playback error for', title, audioUrl, err);
-            alert(`Could not play "${title}". ${err.message || 'Check that the audio URL is valid and publicly accessible.'}`);
+            setSupabaseStatus(`Audio for “${title}” could not load. Check the file URL and try again.`, true);
         });
     };
     styxAudio.addEventListener('canplay', startPlay, { once: true });
@@ -2312,6 +2457,12 @@ if (styxAudio) {
         if (musicProgressFill && duration) {
             musicProgressFill.style.width = (current / duration * 100) + '%';
         }
+        saveMediaState();
+    });
+
+    styxAudio.addEventListener('error', () => {
+        playIcon.innerHTML = '&#9654;';
+        setSupabaseStatus('The selected audio file is unavailable. The rest of the portfolio is still usable.', true);
     });
     
     styxAudio.addEventListener('ended', () => {
@@ -2344,10 +2495,17 @@ if (styxAudio) {
 if (musicPlayPause) {
     musicPlayPause.addEventListener('click', () => {
         if (styxAudio.paused) {
-            styxAudio.play();
-            playIcon.innerHTML = '&#10074;&#10074;';
+            styxAudio.play().then(() => {
+                mediaWasPlayingBeforeHidden = true;
+                saveMediaState();
+                playIcon.innerHTML = '&#10074;&#10074;';
+            }).catch(error => {
+                if (error?.name !== 'AbortError') setSupabaseStatus('Press Play again to allow this media to continue.', true);
+            });
         } else {
             styxAudio.pause();
+            mediaWasPlayingBeforeHidden = false;
+            saveMediaState();
             playIcon.innerHTML = '&#9654;';
         }
     });
@@ -2796,40 +2954,33 @@ window.saveSocialEdit = async function() {
     } catch (_) { return null; }
   }
 
+  function setBellOpen(isOpen) {
+  if (!bellPanel) return;
+  bellPanel.classList.toggle('hidden', !isOpen);
+  bellPanel.setAttribute('aria-hidden', String(!isOpen));
+  bellPanel.style.display = isOpen ? 'flex' : 'none';
+  document.body.classList.toggle('notification-open', isOpen);
+  if (isOpen) {
+  styleBellFullscreen();
+  setTimeout(() => document.getElementById('notif-bell-close')?.focus(), 0);
+  }
+  }
+
+  // Always start closed. This prevents the notification panel from flashing/opening
+  // when the page loads or when a previous script left inline styles behind.
+  setBellOpen(false);
+
   function styleBellFullscreen() {
-    if (!bellPanel) return;
-    // Strip every sizing/positioning class and force true 100vw x 100vh on all screens (mobile + desktop).
-    bellPanel.classList.remove('absolute', 'right-0', 'top-full', 'mt-2', 'w-80', 'max-w-sm', 'max-w-md', 'max-w-lg', 'max-w-xl', 'rounded-2xl', 'rounded-xl', 'rounded-lg');
-    bellPanel.classList.add('fixed', 'inset-0', 'z-[260]', 'bg-slate-950/95', 'backdrop-blur-md', 'p-0', 'm-0');
-    bellPanel.style.cssText = 'position:fixed;inset:0;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;max-width:none;max-height:none;margin:0;padding:0;border-radius:0;z-index:260;';
-    if (!document.getElementById('notif-bell-close')) {
-      const closeBtn = document.createElement('button');
-      closeBtn.id = 'notif-bell-close';
-      closeBtn.type = 'button';
-      closeBtn.className = 'fixed top-4 right-4 z-[270] w-12 h-12 rounded-full bg-white text-slate-900 shadow-xl flex items-center justify-center font-black text-xl hover:bg-slate-100';
-      closeBtn.setAttribute('aria-label', 'Close notifications');
-      closeBtn.textContent = '✕';
-      bellPanel.appendChild(closeBtn);
-    }
-    // Force every ancestor wrapper inside the panel to also fill 100% so nothing constrains width on desktop.
-    const shells = bellPanel.querySelectorAll('div');
-    shells.forEach(el => {
-      if (el.contains(bellList) || el === bellList?.parentElement) {
-        el.classList.remove('max-w-sm','max-w-md','max-w-lg','max-w-xl','w-80','w-96','rounded-2xl','rounded-xl');
-        el.style.width = '100%';
-        el.style.maxWidth = 'none';
-        el.style.height = '100%';
-        el.style.maxHeight = 'none';
-        el.style.borderRadius = '0';
-        el.style.display = el.style.display || 'flex';
-        el.style.flexDirection = 'column';
-      }
-    });
-    if (bellList) {
-      bellList.style.flex = '1 1 auto';
-      bellList.style.overflowY = 'auto';
-      bellList.style.maxHeight = 'none';
-    }
+  if (!bellPanel) return;
+  // Keep notifications as a floating panel so the portfolio behind it remains scrollable.
+  bellPanel.classList.add('notification-panel');
+  bellPanel.style.cssText = '';
+  const shell = bellPanel.firstElementChild;
+  if (shell) shell.style.cssText = '';
+  if (bellList) {
+  bellList.style.overflowY = 'auto';
+  bellList.style.maxHeight = 'min(62vh, 560px)';
+  }
   }
 
   function renderBell() {
@@ -2970,25 +3121,30 @@ window.saveSocialEdit = async function() {
   const restoreScroll = () => {
     document.body.style.overflow = '';
     document.documentElement.style.overflow = '';
+    document.body.classList.remove('notification-open');
   };
 
   if (bellBtn) {
     bellBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      styleBellFullscreen();
-      bellPanel.classList.remove('hidden');
-      document.body.style.overflow = 'hidden';
+      setBellOpen(true);
       // NOTE: badge count is NOT cleared on open. It only clears when the
       // creator clicks Save or Undo (see clearAllAdminActivity()).
       loadNotifications();
     });
-    const closeBell = () => { bellPanel.classList.add('hidden'); restoreScroll(); };
-    document.getElementById('notif-bell-close')?.addEventListener('click', closeBell);
+    const closeBell = (e) => {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      setBellOpen(false);
+      restoreScroll();
+    };
+    // Delegated handling also works if the panel header is re-rendered later.
     bellPanel.addEventListener('click', (e) => {
-      if (e.target === bellPanel || e.target?.id === 'notif-bell-close') closeBell();
+      if (e.target === bellPanel || e.target?.closest?.('#notif-bell-close')) closeBell(e);
     });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !bellPanel.classList.contains('hidden')) closeBell(); });
-    styleBellFullscreen();
+    // Keep the panel closed on first load; only the bell click opens it.
+    setBellOpen(false);
     loadNotifications();
     setInterval(loadNotifications, 30000);
   }
