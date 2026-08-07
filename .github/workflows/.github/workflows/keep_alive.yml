@@ -1,8 +1,10 @@
 name: Keep Supabase Alive
+
 on:
   schedule:
-    - cron: '0 0 * * *' # Runs daily at midnight UTC
-  workflow_dispatch:    # Allows you to trigger it manually
+    # Runs every 3 days at 08:00 UTC to safely prevent the 7-day inactivity pause
+    - cron: '0 8 */3 * *'
+  workflow_dispatch: # Allows manual run from GitHub Actions dashboard
 
 jobs:
   ping:
@@ -10,6 +12,20 @@ jobs:
     steps:
       - name: Ping Supabase Database
         run: |
-          curl -X GET "https://mpcjnyuczjukfazplqjc.supabase.co/rest/v1/profile_info?select=id&limit=1" \
-          -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+          echo "Pinging Supabase database to reset inactivity timer..."
+          
+          # Query profile_info table and store the HTTP status code
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://mpcjnyuczjukfazplqjc.supabase.co/rest/v1/profile_info?select=id&limit=1" \
+            -H "apikey: sb_publishable_S8r-c688VW112n85RRZ7Vw_e5p7W6Fr" \
+            -H "Authorization: Bearer sb_publishable_S8r-c688VW112n85RRZ7Vw_e5p7W6Fr")
+          
+          echo "HTTP Response Status Code: $RESPONSE"
+          
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ Supabase ping successful. Project status active."
+          else
+            echo "❌ Failed with status code $RESPONSE. Supabase may be paused or down."
+            echo "Visit https://supabase.com/dashboard to manually resume."
+            exit 1
+          fi
