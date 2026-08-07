@@ -955,6 +955,18 @@
 <body class="min-h-screen antialiased">
 
     <div id="app-splash" aria-hidden="true"><div class="ring"></div></div>
+
+    <aside id="supabase-status-banner" class="supabase-status-banner is-hidden" role="alert" aria-live="polite" hidden>
+        <div class="supabase-status-copy">
+            <strong>Portfolio data is temporarily unavailable</strong>
+            <span id="supabase-status-message">Supabase may be paused or unreachable. Showing available local content.</span>
+        </div>
+        <div class="supabase-status-actions">
+            <button id="supabase-status-retry" type="button">Retry</button>
+            <button id="supabase-status-dismiss" type="button" aria-label="Dismiss database status notice">Dismiss</button>
+        </div>
+    </aside>
+
     <script>
       // Reveal as soon as DOM is parsed — content streams in behind via skeletons.
       (function(){
@@ -1720,7 +1732,11 @@
         </div>
     </div>
     <div class="flex-1 overflow-y-auto p-10">
-        <div id="gallery-images" class="flex flex-wrap gap-8 justify-center items-start pb-10"></div>
+        <div id="gallery-loading" class="gallery-loading" role="status" aria-live="polite">
+            <span class="gallery-loading-spinner" aria-hidden="true"></span>
+            <span>Loading game media…</span>
+        </div>
+        <div id="gallery-images" class="flex flex-wrap gap-8 justify-center items-start pb-10" aria-busy="true"></div>
     </div>
 </div>
 
