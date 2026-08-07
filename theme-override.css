@@ -1,3 +1,97 @@
+/* Gallery loading and notification panel UX */
+.gallery-loading {
+    display: flex;
+    min-height: 7rem;
+    align-items: center;
+    justify-content: center;
+    gap: .75rem;
+    color: #e0f2fe;
+    font-size: .8rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+.gallery-loading.is-hidden { display: none; }
+.gallery-loading-spinner {
+    width: 1.35rem;
+    height: 1.35rem;
+    border: 3px solid rgba(255,255,255,.28);
+    border-top-color: #67e8f9;
+    border-radius: 50%;
+    animation: portfolio-spin .75s linear infinite;
+}
+@keyframes portfolio-spin { to { transform: rotate(360deg); } }
+#notif-bell-panel.hidden,
+#notif-bell-panel.notification-panel.hidden {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+#notif-bell-panel.notification-panel {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 260 !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: flex-end !important;
+    padding: 4.75rem 1rem 1rem !important;
+    background: transparent !important;
+    pointer-events: none !important;
+}
+#notif-bell-panel.notification-panel > div {
+    width: min(100%, 28rem) !important;
+    height: auto !important;
+    max-height: calc(100vh - 6rem) !important;
+    margin: 0 !important;
+    border-radius: 1.25rem !important;
+    pointer-events: auto !important;
+    box-shadow: 0 24px 70px rgba(15,23,42,.28) !important;
+}
+#notif-bell-panel.notification-panel #notif-bell-list { max-height: min(62vh, 560px) !important; }
+#notif-bell-panel.notification-panel #notif-bell-close {
+    position: absolute !important;
+    top: .75rem !important;
+    right: .75rem !important;
+    z-index: 5 !important;
+}
+body.notification-open { overflow: auto !important; }
+
+/* Portfolio reliability notice and media fallbacks */
+.supabase-status-banner {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    z-index: 10000;
+    display: flex;
+    width: min(92vw, 760px);
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    transform: translateX(-50%);
+    padding: .85rem 1rem;
+    border: 1px solid rgba(14, 116, 144, .35);
+    border-radius: 1rem;
+    background: rgba(240, 249, 255, .96);
+    color: #0f172a;
+    box-shadow: 0 12px 34px rgba(15, 23, 42, .18);
+    backdrop-filter: blur(14px);
+    transition: opacity .2s ease, transform .2s ease;
+}
+.supabase-status-banner.is-hidden { opacity: 0; pointer-events: none; transform: translate(-50%, -1rem); }
+.supabase-status-copy { display: grid; gap: .15rem; min-width: 0; }
+.supabase-status-copy strong { font-size: .8rem; letter-spacing: .02em; }
+.supabase-status-copy span { font-size: .75rem; line-height: 1.4; color: #334155; }
+.supabase-status-actions { display: flex; flex-shrink: 0; align-items: center; gap: .5rem; }
+.supabase-status-actions button { border: 0; border-radius: 999px; padding: .5rem .75rem; font: inherit; font-size: .72rem; font-weight: 800; cursor: pointer; }
+#supabase-status-retry { background: #0369a1; color: #fff; }
+#supabase-status-dismiss { background: rgba(15, 23, 42, .08); color: #334155; }
+.media-load-error { opacity: .45; filter: grayscale(1); }
+.media-load-error::after { content: 'Unavailable'; }
+@media (max-width: 640px) {
+    .supabase-status-banner { top: .65rem; align-items: flex-start; flex-direction: column; }
+    .supabase-status-actions { width: 100%; justify-content: flex-end; }
+}
+
 /* ============================================
    STYX HELIX TEMPORARY THEME 
    These styles ONLY apply while the Styx Helix track is playing
