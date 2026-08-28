@@ -40,7 +40,7 @@ async function withSupabaseTimeout(request, label) {
         if (result?.error) throw result.error;
         return result;
     } catch (error) {
-        setSupabaseStatus(`${describeSupabaseFailure(error)} Showing available local content.`);
+        activateOfflineMode();
         console.warn(`[portfolio] ${label} failed`, error);
         return { data: null, error };
     } finally {
@@ -320,6 +320,42 @@ const lightboxNext = document.getElementById('lightbox-next');
 let currentLightboxImages = [];
 let currentLightboxIndex = 0;
 
+const offlinePortfolio = window.OFFLINE_PORTFOLIO || {};
+let offlineModeActive = false;
+
+function renderOfflineSnapshot() {
+    const snapshot = offlinePortfolio;
+    if (snapshot.profile_info) {
+        profileData = snapshot.profile_info;
+        renderProfileInfo(profileData);
+    }
+    if (snapshot.site_settings) {
+        siteSettings = snapshot.site_settings;
+        if (quoteText && snapshot.site_settings.life_quote) quoteText.textContent = snapshot.site_settings.life_quote;
+    }
+    wisdomSlides = Array.isArray(snapshot.wisdom_slides) && snapshot.wisdom_slides.length
+        ? snapshot.wisdom_slides : wisdomSlides;
+    renderWisdomSlider();
+    allProjects = Array.isArray(snapshot.projects) ? snapshot.projects : [];
+    allCerts = Array.isArray(snapshot.certificates) ? snapshot.certificates : [];
+    allMusic = Array.isArray(snapshot.music) ? snapshot.music : [];
+    window.allProjects = allProjects;
+    window.allCerts = allCerts;
+    window.allHobbies = Array.isArray(snapshot.hobbies) ? snapshot.hobbies : [];
+    socialsCache = Array.isArray(snapshot.socials) ? snapshot.socials : [];
+    renderProjects(allProjects);
+    renderCertificates(allCerts);
+    renderHobbies(window.allHobbies);
+    renderMusic(allMusic);
+    renderSocials(socialsCache);
+}
+
+function activateOfflineMode() {
+    offlineModeActive = true;
+    renderOfflineSnapshot();
+    setSupabaseStatus('Offline mode: Supabase is paused or unreachable. Showing the GitHub backup.', true);
+}
+
 async function loadProfileInfo() {
     const { data } = await queryTable('profile_info', query => query.select('*').eq('id', 1).single(), 'profile');
     if (data) {
@@ -441,7 +477,7 @@ setInterval(() => {
 
 async function loadMusic() {
     const { data } = await queryTable('music', query => query.select('*').order('created_at', { ascending: false }), 'music');
-    allMusic = data || [];
+    allMusic = data?.length ? data : (offlinePortfolio.music || []);
     renderMusic(allMusic);
     
     // Auto-play Styx Helix if found and not already played this session
@@ -526,6 +562,7 @@ async function loadPortfolio() {
     if (portfolioLoadInFlight) return portfolioLoadInFlight;
     portfolioLoadInFlight = (async () => {
         setSupabaseStatus('', false);
+        renderOfflineSnapshot();
         await Promise.allSettled([loadProfileInfo(), loadSiteSettings(), loadWisdomSlides(), loadMusic()]);
 
         const [{ data: projects }, { data: certs }, { data: hobbies }, { data: socials }] = await Promise.all([
@@ -535,18 +572,18 @@ async function loadPortfolio() {
             queryTable('socials', query => query.select('*'), 'socials')
         ]);
 
-        allProjects = projects || [];
+        allProjects = projects?.length ? projects : (offlinePortfolio.projects || allProjects);
         window.allProjects = allProjects;
         renderProjects(allProjects);
 
-        allCerts = certs || [];
+        allCerts = certs?.length ? certs : (offlinePortfolio.certificates || allCerts);
         window.allCerts = allCerts;
         renderCertificates(allCerts);
 
-        window.allHobbies = hobbies || [];
-        renderHobbies(hobbies || []);
+        window.allHobbies = hobbies?.length ? hobbies : (offlinePortfolio.hobbies || window.allHobbies || []);
+        renderHobbies(window.allHobbies);
 
-        socialsCache = socials || [];
+        socialsCache = socials?.length ? socials : (offlinePortfolio.socials || socialsCache);
         window.socialsCache = socialsCache;
         renderSocials(socialsCache);
         attachMediaFallbacks();
