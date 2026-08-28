@@ -1,7 +1,7 @@
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 
 const supabaseUrl = 'https://mpcjnyuczjukfazplqjc.supabase.co';
-const supabaseKey = 'sb_publishable_S8r-c688VW112n85RRZ7Vw_e5p7W6Fr'; 
+const supabaseKey = 'sb_publishable_S8r-c688VW112n85RRZ7Vw_e5p7W6Fr123'; 
 const db = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 const SUPABASE_TIMEOUT_MS = 9000;
