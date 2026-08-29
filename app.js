@@ -2706,7 +2706,8 @@ document.addEventListener('DOMContentLoaded', () => {
       pre.onerror = function(){
         img.src = real; img.removeAttribute('data-src'); img.classList.add('lqip-loaded');
       };
-      pre.src = real;
+      // Encode spaces and special characters so GitHub Pages can load downloaded filenames.
+  pre.src = encodeURI(real);
     });
   }, { rootMargin: '300px 0px', threshold: 0.01 }) : null;
 
