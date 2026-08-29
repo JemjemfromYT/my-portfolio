@@ -1,29 +1,24 @@
-/*
-  Public offline backup for my-portfolio.
-  Replace the empty arrays with exported public Supabase rows.
-  Never put Supabase keys, admin data, or private user data in this file.
-*/
 window.OFFLINE_PORTFOLIO = {
-  profile_info: null,
-  site_settings: {
-    id: 1,
-    life_quote: "If you're going through hell, keep going. Why would you stop in hell?"
-  },
-  wisdom_slides: [
-    { id: "offline-1", text: "If you're going through hell", display_order: 1 },
-    { id: "offline-2", text: "Keep going", display_order: 2 },
-    { id: "offline-3", text: "Why would you stop in hell", display_order: 3 }
+  profile_info: { id: 1, tagline: "Unemployed Final Boss", bio: "Yall dont know my real name? Search \"The Unloved Goddess Jonaxx main character\" on google | A Full Stack Mobile developer because its convenient device | Builted in 5 days with the help of ShitGPT. | All projects spended 0$ | ((( ADMIN PASSWORD: 2027 ))) | THE REASON WHY I COULD CREATE SOME PROJECT ITS BECAUSE I USE REPLIT, WHEN THE CREDITS WAS END I JUST DELETE MY ACCOUNT AND THE CREDIT WILL RESET AGAIN, However new Update 2026 August was now updated their account deletion, therefore i could no longer create good app again, afterall I just vibecoded, However i could still use gemini using swtiching various account technique, thats what i used on creating UNITY games(Gemini also because it can see video)(But not good as replit where it can view git files code from github)", tech_stack: ["JavaScript","Supabase","Tailwind","SQL","VanillaCSS"], status: "Doom Scrolling", location: "Gingoog City, PH", avatar_url: "offline/portfolio-assets/avatars/1777186180880-RobloxScreenShot20250906_110637097.png" },
+  site_settings: { id: 1, life_quote: "If you're going through hell, keep going. Why would you stop in hell?" },
+  wisdom_slides: [{ id: 4, text: "If you whant to follow your dream", display_order: 1 }, { id: 5, text: "then don't wake up", display_order: 2 }],
+  projects: [
+    { id: "0b9e7d0f", title: "Miss Mo", description: "Just a meme, not too much", link: "https://jemjemfromyt.github.io/Miss-mo-/", image_url: "offline/portfolio-assets/projects/1776490323015-Screenshot 2026-04-18 133114.png", languages: "html, css, js", display_order: 15 },
+    { id: "2c5aa343", title: "My First Game", description: "This game is something weird, just complete the games i copied from other developer till you finish", link: "https://jemjemfromyt.github.io/Game_code-beta-optimized/", image_url: "offline/portfolio-assets/projects/1776490103111-Screenshot 2026-04-18 132307.png", languages: "html, css, js", display_order: 6 },
+    { id: "5e34e417", title: "Pet Quest", description: "If you noticed theres no photo now or cant share or cant upload , thats means the DATABASE which is SUPABASE was Paused, i could easily continue it by clicking CONTINUE, however since no one use this app much so i have to let it pause", link: "https://drive.google.com/file/d/1mMmbMfzLr_1AYi8KXovMg3WNraPpQWt/view?usp=drivesdk", image_url: "offline/portfolio-assets/projects/1782726094822-1000016088.jpg", languages: "kotlin,html,css, supabase", display_order: 1 },
+    { id: "711ae934", title: "Mission Uncomfortable", description: "An offline app that gives you mission a day. It will helps you broke the social normies and approxmtely improve confidence without breaking the rules", link: "https://drive.google.com/file/d/1RwslWIbNdoZdWSj0nJJbHIGmamdjQLOp/view?usp=sharing", image_url: "offline/portfolio-assets/projects/1784462267326-Screenshot_20260719_195416.png", languages: "Kotlin", display_order: 2 },
+    { id: "788c41c3", title: "Malunggay Pandesal Ai", description: "A Cebuanong Bisaya that can be chat unlimited message and doesn't use API | The downside is very slow to respond so you have wait and vibe with the budots", link: "https://jemjemfromyt-jemjemfromytspace.hf.space", image_url: "offline/portfolio-assets/projects/1777004409372-Screenshot_20260424_115706_Chrome.jpg", languages: "phyton, Flask, HTMX, Hugging Face Spaces, html,css, js", display_order: 4 },
+    { id: "7927f09a", title: "ZBaddie", description: "Lol took me 3 weeks to fix this rigging on girl character, BTW this is all about a person who dream stranger", link: "https://drive.google.com/file/d/1QHjEtJQqF0YQ4wdZnCFLN1dOiv6qAlxw/view?usp=drivesdk", image_url: "offline/portfolio-assets/projects/1785998029247-1000016555.jpg", languages: "Unity, C#", display_order: 0 },
+    { id: "916b9fd4", title: "8 Souls of J", description: "A playlist of 8 Souls refering to my friends", link: "https://jemjemfromyt.github.io/The-8-Souls/", image_url: "offline/portfolio-assets/projects/1776490207304-Screenshot 2026-04-18 132321.png", languages: "html, css, js", display_order: 6 },
+    { id: "a2a379d1", title: "Akong Migo Ai", description: "An Uncensored ai that uses gemini api, it has limit of message. Cannot respond some dangerous intent", link: "https://jemjemfromyt.github.io/Chatbot/", image_url: "offline/portfolio-assets/projects/1776927149086-Screenshot_20260423_145049_Messenger.jpg", languages: "Html,css, js,render,nodejs,json,gemini text", display_order: 3 },
+    { id: "a7fdde4b", title: "Dino Vs Alden game V0.3", description: "CAUTIOUS: Please play it only in mobile (and also dont use desktop mode) so that it wont ruin. Built in 3 Days | It was inspired by offline google game but the content is based on my squad", link: "https://jemjemfromyt.github.io/Alden-vs-Jsquad-Dino-V0.4-main/.", image_url: "offline/portfolio-assets/projects/1776489755000-Screenshot 2026-04-18 132103.png", languages: "html, css, js", display_order: 4 },
+    { id: "ca6b5e22", title: "Full: Endless Arena Survival Wave", description: "A wave based endless survival where each wave will evolve the enemies, to survive, select a good upgrade of your hero | Multiplayer is available on other mode", link: "https://drive.google.com/file/d/1r_zZH8Bv4JNElcFKty7GXe_Kman5BWb/view?usp=drivesdk", image_url: "offline/portfolio-assets/projects/1777460070204-Screenshot_20260429_185417_Chrome.jpg", languages: "Html, css, js, nodejs, json, paymongo, Android studio", display_order: 1 },
+    { id: "e1fd9ed3", title: "JSDied", description: "This game is made of our real house. It inspired by Granny horror mobile game, the characters here I use are my friends that belong to our squad", link: "https://drive.google.com/file/d/1MdvioS0m8h8wCpDZbimgHJMdaB31tGxv/view?usp=drive_link", image_url: "offline/portfolio-assets/projects/1776489977663-Screenshot 2026-04-18 132502.png", languages: "GDScript, Godot", display_order: 2 },
+    { id: "feea73d6", title: "Who Is Not The Human", description: "A horror game where you must select the right person", link: "https://jemjemfromyt.github.io/Who-is-not-the-human/", image_url: "offline/portfolio-assets/projects/1776490148127-Screenshot 2026-04-18 132254.png", languages: "html, css, js", display_order: 10 }
   ],
-  projects: [],
-  certificates: [],
-  hobbies: [],
-  music: [],
-  socials: [],
-  hobby_gallery: []
+  certificates: [], hobbies: [], socials: [], hobby_gallery: [],
+  music: [
+    { id: 1, title: "STYX HELIX", artist: "RE Zero", image_url: "offline/portfolio-assets/music/1776319938799-Is-satella-emilia.jpg", audio_url: "offline/portfolio-assets/music/1776319940013-STYX HELIX - MYTH & ROID Official Channel (64k).mp3" },
+    { id: 7, title: "The Sacred Torch", artist: "The Faraway Paladin", image_url: "offline/portfolio-assets/music/1776597270534-gracefeel-1-285x400 (1).jpg", audio_url: "offline/portfolio-assets/music/1776597271194-Ytmp3.gg_YouTube_Media_l3kj86i7wQ0_007_128k.mp3" }
+  ]
 };
-(function () {
-  try {
-    const saved = JSON.parse(localStorage.getItem('portfolio-offline-backup') || 'null');
-    if (saved && typeof saved === 'object') window.OFFLINE_PORTFOLIO = { ...window.OFFLINE_PORTFOLIO, ...saved };
-  } catch (_) {}
-})();
