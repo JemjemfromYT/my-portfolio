@@ -435,7 +435,7 @@ window.OFFLINE_PORTFOLIO = {
     {
       "id": "b071bf42-51e7-48fc-8e09-f59300f15eed",
       "category_name": "Sololearn",
-      "title": "Introduction to c#",
+      "title": "Introduction to cSharp",
       "description": "ACC: https://www.sololearn.com/profile/35533065/?ref=app   All languages certs are collected🥀",
       "image_url": "https://mpcjnyuczjukfazplqjc.supabase.co/storage/v1/object/public/portfolio-assets/certs/1776146125368-Introduction%20to%20C#_certificate.jpg",
       "created_at": "2026-04-14 05:55:26.924719+00"
@@ -475,7 +475,7 @@ window.OFFLINE_PORTFOLIO = {
     {
       "id": "d8fad73a-c5fb-4a11-9390-a8d024687844",
       "category_name": "Sololearn",
-      "title": "C# intermediate",
+      "title": "CSharp intermediate",
       "description": "ACC: https://www.sololearn.com/profile/35533065/?ref=app   All languages certs are collected🥀",
       "image_url": "https://mpcjnyuczjukfazplqjc.supabase.co/storage/v1/object/public/portfolio-assets/certs/1776147223095-C#%20Intermediate_certificate.jpg",
       "created_at": "2026-04-14 06:13:44.793598+00"
