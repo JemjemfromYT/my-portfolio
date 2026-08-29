@@ -6,6 +6,52 @@ const db = supabaseKey && window.supabase?.createClient
     ? window.supabase.createClient(supabaseUrl, supabaseKey)
     : null;
 
+
+/* === Offline media URL normalizer ===========================================
+   Single place that turns any stored media value into a URL this page can load.
+   - keeps remote http(s) Supabase URLs while Supabase is actually configured
+   - rewrites Supabase storage URLs to the committed local snapshot otherwise
+   - uses the real committed folder spelling (portfolio-assets/hobbys)
+   - encodes spaces/# exactly once, and never renders "undefined"
+   Relative results keep working under the /my-portfolio/ GitHub Pages subpath. */
+const OFFLINE_ASSET_ROOT = 'offline/portfolio-assets/';
+const OFFLINE_FOLDER_ALIASES = { hobbies: 'hobbys', hobby: 'hobbys', certificates: 'certs', avatar: 'avatars' };
+
+function mediaUrl(raw) {
+    if (raw === null || raw === undefined) return '';
+    let url = String(raw).trim();
+    if (!url || url === 'null' || url === 'undefined') return '';
+    if (url.includes('/portfolio-assets/')) {
+        const isRemote = /^https?:\/\//i.test(url);
+        if (!isRemote || !db) {
+            let rel = url.split('/portfolio-assets/')[1].split('?')[0].split('#')[0];
+            try { rel = decodeURIComponent(rel); } catch (e) { /* already decoded */ }
+            const parts = rel.split('/').filter(Boolean);
+            if (parts.length && OFFLINE_FOLDER_ALIASES[parts[0]]) parts[0] = OFFLINE_FOLDER_ALIASES[parts[0]];
+            url = OFFLINE_ASSET_ROOT + parts.join('/');
+        }
+    }
+    if (!/^https?:\/\//i.test(url) && !url.startsWith('data:')) {
+        url = encodeURI(url).replace(/#/g, '%23');
+    }
+    return url;
+}
+
+function mediaAttr(raw) { return escapeHtml(mediaUrl(raw)); }
+function mediaArg(raw) { return mediaUrl(raw).replace(/'/g, "\\'"); }
+
+/* First real description inside a grouped section (never overwrite real text
+   with a placeholder just because the first row left it blank). */
+function groupDescription(rows) {
+    const hit = (rows || []).find(r => (r.description || '').trim());
+    return hit ? hit.description : '';
+}
+
+function offlineRows(table) {
+    const value = (window.OFFLINE_PORTFOLIO || {})[table];
+    return Array.isArray(value) ? value : (value ? [value] : []);
+}
+
 const SUPABASE_TIMEOUT_MS = 9000;
 const RELIABILITY_STORAGE_KEY = 'portfolio-reliability-dismissed';
 const reliabilityBanner = document.getElementById('supabase-status-banner');
@@ -349,14 +395,19 @@ function renderOfflineSnapshot() {
     window.allCerts = allCerts;
     window.allHobbies = Array.isArray(snapshot.hobbies) ? snapshot.hobbies : [];
     socialsCache = Array.isArray(snapshot.socials) ? snapshot.socials : [];
+    window.socialsCache = socialsCache;
+    window.offlineHobbyGallery = Array.isArray(snapshot.hobby_gallery) ? snapshot.hobby_gallery : [];
+    window.offlineSettings = snapshot.settings || {};
     renderProjects(allProjects);
     renderCertificates(allCerts);
     renderHobbies(window.allHobbies);
     renderMusic(allMusic);
     renderSocials(socialsCache);
+    attachMediaFallbacks();
 }
 
 function activateOfflineMode() {
+    if (offlineModeActive) { renderOfflineSnapshot(); return; }
     offlineModeActive = true;
     renderOfflineSnapshot();
     setSupabaseStatus('Offline mode: Supabase is paused or unreachable. Showing the GitHub backup.', true);
@@ -377,7 +428,7 @@ function renderProfileInfo(data) {
     if (profileLocation) profileLocation.textContent = data.location || 'Gingoog City, PH';
 
     const avatarImg = document.getElementById('profile-avatar');
-    if (avatarImg && data.avatar_url) avatarImg.src = data.avatar_url;
+    if (avatarImg && data.avatar_url) avatarImg.src = mediaUrl(data.avatar_url);
 
     if (profileTechStack && data.tech_stack) {
         profileTechStack.innerHTML = data.tech_stack.map(tech =>
@@ -511,7 +562,7 @@ function showMusicPrompt(track) {
                 <span class="text-xs text-violet-300 font-medium">Background Music</span>
                 <span class="text-sm font-bold">${track.title}</span>
             </div>
-            <button onclick="acceptMusicPrompt('${track.id}', '${track.audio_url}', '${track.title}')" class="px-4 py-2 bg-gradient-to-r from-violet-500 to-pink-500 rounded-full text-xs font-bold hover:opacity-90 transition-opacity">Play</button>
+            <button onclick="acceptMusicPrompt('${track.id}', '${mediaArg(track.audio_url)}', '${h_safeTitle(track.title)}')" class="px-4 py-2 bg-gradient-to-r from-violet-500 to-pink-500 rounded-full text-xs font-bold hover:opacity-90 transition-opacity">Play</button>
             <button onclick="dismissMusicPrompt()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-xs">&#x2715;</button>
         </div>
     `;
@@ -543,11 +594,11 @@ function renderMusic(music) {
     musicContainer.innerHTML = music.map(track => {
         const isStyxHelix = track.title.toLowerCase().includes('styx') || track.title.toLowerCase().includes('helix');
         return `
-            <div class="glass-card p-5 cursor-pointer group hover:scale-105 transition-all duration-300 relative overflow-hidden ${isStyxHelix ? 'border-2 border-violet-400/50' : ''}" onclick="playMusic('${track.id}', '${track.audio_url}', '${track.title}')">
+            <div class="glass-card p-5 cursor-pointer group hover:scale-105 transition-all duration-300 relative overflow-hidden ${isStyxHelix ? 'border-2 border-violet-400/50' : ''}" onclick="playMusic('${track.id}', '${mediaArg(track.audio_url)}', '${h_safeTitle(track.title)}')">
                 <div class="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/60 to-transparent pointer-events-none"></div>
                 ${isStyxHelix ? '<div class="absolute top-2 right-2 bg-gradient-to-r from-violet-500 to-pink-500 text-white text-[9px] px-2 py-1 rounded-full font-black uppercase tracking-wider z-10">Special</div>' : ''}
                 <div class="relative mb-4 rounded-xl overflow-hidden shadow-md border border-white aspect-square">
-                    <img loading="lazy" decoding="async" data-src="${track.image_url}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
+                    <img loading="lazy" decoding="async" data-src="${mediaAttr(track.image_url)}" alt="${escapeHtml(track.title || 'Track')} cover" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
                     <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
                     <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <div class="w-16 h-16 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-white text-2xl shadow-lg">&#9654;</div>
@@ -567,8 +618,9 @@ function renderMusic(music) {
 async function loadPortfolio() {
     if (portfolioLoadInFlight) return portfolioLoadInFlight;
     portfolioLoadInFlight = (async () => {
-        setSupabaseStatus('', false);
+        if (db) setSupabaseStatus('', false);
         renderOfflineSnapshot();
+        if (!db) { activateOfflineMode(); return; }
         await Promise.allSettled([loadProfileInfo(), loadSiteSettings(), loadWisdomSlides(), loadMusic()]);
 
         const [{ data: projects }, { data: certs }, { data: hobbies }, { data: socials }] = await Promise.all([
@@ -667,7 +719,7 @@ function renderProjects(projects) {
                 <div class="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/70 to-transparent pointer-events-none"></div>
                 ${isOther ? `<span class="absolute top-3 left-3 z-20 text-[9px] font-black uppercase tracking-widest bg-violet-500 text-white px-2.5 py-1 rounded-full shadow">Demo</span>` : ''}
                 <div class="relative mb-6 rounded-2xl overflow-hidden shadow-md border border-white">
-                    <img loading="lazy" decoding="async" data-src="${p.image_url}" class="h-56 w-full object-cover transition-transform duration-700 group-hover:scale-105">
+                    <img loading="lazy" decoding="async" data-src="${mediaAttr(p.image_url)}" class="h-56 w-full object-cover transition-transform duration-700 group-hover:scale-105">
                     <div class="absolute inset-0 bg-gradient-to-t from-sky-900/40 to-transparent pointer-events-none"></div>
                     ${isAdmin ? `
                         <div class="absolute top-3 right-3 flex gap-2 z-20">
@@ -850,7 +902,7 @@ function renderCertificates(certs) {
 
     certBox.innerHTML = '';
     for (const category in groups) {
-        const desc = groups[category][0].description || "Description pending.";
+        const desc = groupDescription(groups[category]);
         const isVisible = groups[category][0].is_visible !== false;
 
         if (!isVisible && !isAdmin) continue;
@@ -867,11 +919,11 @@ function renderCertificates(certs) {
                         </button>
                     ` : ''}
                 </div>
-                <p class="text-slate-600 text-sm mb-8 font-medium relative z-10 max-w-3xl">${desc}</p>
+                ${desc ? `<p class="text-slate-600 text-sm mb-8 font-medium relative z-10 max-w-3xl">${desc}</p>` : ''}
                 <div class="flex flex-wrap gap-6 relative z-10">
                     ${groups[category].map(cert => `
                         <div class="relative group cursor-pointer">
-                            <img loading="lazy" decoding="async" data-src="${cert.image_url}" onclick="openLightbox('${cert.image_url}')" class="cert-img-target h-40 w-56 object-cover rounded-xl border-2 border-white shadow-lg shadow-sky-900/10 cursor-zoom-in transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl">
+                            <img loading="lazy" decoding="async" data-src="${mediaAttr(cert.image_url)}" onclick="openLightbox('${mediaArg(cert.image_url)}')" class="cert-img-target h-40 w-56 object-cover rounded-xl border-2 border-white shadow-lg shadow-sky-900/10 cursor-zoom-in transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl">
                             <div class="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent rounded-xl pointer-events-none"></div>
                             ${isAdmin ? `<button onclick="deleteItem('certificates', '${cert.id}')" class="absolute -top-3 -right-3 bg-red-500/90 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-lg border border-red-400 font-bold hover:bg-red-600 transition-colors backdrop-blur-sm z-20">&#x2715;</button>` : ''}
                         </div>
@@ -894,7 +946,7 @@ function renderHobbies(hobbies) {
 
     hobbyBox.innerHTML = '';
     for (const category in groups) {
-        const desc = groups[category][0].description || "Description pending.";
+        const desc = groupDescription(groups[category]);
         const isVisible = groups[category][0].is_visible !== false;
 
         if (!isVisible && !isAdmin) continue;
@@ -911,12 +963,12 @@ function renderHobbies(hobbies) {
                         </button>
                     ` : ''}
                 </div>
-                <p class="text-slate-600 text-sm mb-8 font-medium relative z-10 max-w-3xl">${desc}</p>
+                ${desc ? `<p class="text-slate-600 text-sm mb-8 font-medium relative z-10 max-w-3xl">${desc}</p>` : ''}
                 <div class="flex flex-wrap gap-6 relative z-10">
                     ${groups[category].map(h => `
                         <div class="relative flex flex-col bg-white/80 p-4 rounded-2xl border border-white shadow-lg shadow-emerald-900/5 hover:-translate-y-2 transition-all duration-300 w-52 group">
                             <div class="relative overflow-hidden rounded-xl border border-white shadow-sm">
-                                <img loading="lazy" decoding="async" data-src="${h.cover_image}" class="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-110">
+                                <img loading="lazy" decoding="async" data-src="${mediaAttr(h.cover_image)}" alt="${escapeHtml(h.title || 'Interest')} cover" class="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-110">
                                 <div class="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
                                 <span class="absolute top-2 left-2 bg-white/95 text-emerald-800 text-[10px] px-3 py-1 rounded-md font-black shadow-sm backdrop-blur-md border border-white uppercase tracking-widest">RANK #${h.rank}</span>
                                 ${isAdmin ? `<button onclick="event.stopPropagation(); editHobbyRank('${h.id}', ${h.rank || 0})" class="absolute bottom-2 left-2 bg-emerald-500/95 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs shadow-md border border-emerald-400 font-bold z-10 hover:bg-emerald-600" title="Edit Rank">&#9650;</button>` : ''}
@@ -926,7 +978,7 @@ function renderHobbies(hobbies) {
                                 <h4 class="font-extrabold text-[15px] text-slate-800 truncate tracking-tight text-center" title="${h.title}">${h.title}</h4>
                                 <div class="flex gap-2">
                                     ${h.show_info !== false ? `<button onclick="openInfo('${h.tags || ''}')" class="flex-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-[10px] py-2 rounded-lg font-bold tracking-widest uppercase shadow-sm transition-all hover:shadow">INFO</button>` : ''}
-                                    ${h.show_view !== false ? `<button onclick="openGallery('${h.id}', '${h.title}', '${h.cover_image}')" class="flex-1 glossy-btn-green text-[10px] py-2 font-bold tracking-widest uppercase">VIEW</button>` : ''}
+                                    ${h.show_view !== false ? `<button onclick="openGallery('${h.id}', '${h_safeTitle(h.title)}', '${mediaArg(h.cover_image)}')" class="flex-1 glossy-btn-green text-[10px] py-2 font-bold tracking-widest uppercase">VIEW</button>` : ''}
                                 </div>
                             </div>
                             ${isAdmin ? `
@@ -965,7 +1017,7 @@ function renderSocials(socials) {
             <${tag} ${tagAttrs}>
                 <div class="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/90 to-transparent pointer-events-none"></div>
                 <div class="relative w-14 h-14 rounded-xl overflow-hidden shadow-md border border-white flex-shrink-0 bg-white">
-                    <img loading="lazy" decoding="async" data-src="${s.image_url}" class="w-full h-full object-cover">
+                    <img loading="lazy" decoding="async" data-src="${mediaAttr(s.image_url)}" class="w-full h-full object-cover">
                 </div>
                 <div class="flex flex-col overflow-hidden relative z-10">
                     <span class="font-extrabold text-slate-800 truncate text-lg tracking-tight">${s.platform}</span>
@@ -1634,20 +1686,29 @@ window.openGallery = async function(hobbyId, title, coverImgUrl) {
     if (galleryLoading) galleryLoading.classList.remove('is-hidden');
     if (imgContainer) {
         imgContainer.setAttribute('aria-busy', 'true');
-        imgContainer.innerHTML = `<div class="relative group cursor-pointer hover:scale-105 transition-transform duration-300"><img loading="eager" decoding="async" src="${coverImgUrl}" alt="${title} cover" class="max-h-96 w-auto rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/20"></div>`;
+        imgContainer.innerHTML = `<div class="relative group cursor-pointer hover:scale-105 transition-transform duration-300"><img loading="eager" decoding="async" src="${mediaAttr(coverImgUrl)}" alt="${title} cover" class="max-h-96 w-auto rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/20"></div>`;
     }
 
     galleryModal.classList.remove('hidden');
     galleryModal.classList.add('flex');
 
-    const { data: extraImages } = await db.from('hobby_gallery').select('id, image_url, media_type').eq('hobby_id', hobbyId);
+    let extraImages = null;
+    if (db) {
+        const res = await queryTable('hobby_gallery',
+            query => query.select('id, image_url, media_type').eq('hobby_id', hobbyId), 'gallery');
+        extraImages = res.data;
+    }
+    if (!extraImages || !extraImages.length) {
+        extraImages = offlineRows('hobby_gallery').filter(g => String(g.hobby_id) === String(hobbyId));
+    }
     if (extraImages) extraImages.forEach(img => {
-        const url = img.image_url || '';
+        const url = mediaUrl(img.image_url);
+        if (!url) return;
         const isVideo = (img.media_type === 'video') || /\.(mp4|webm|ogg|mov|m4v)(\?|$)/i.test(url);
         const media = isVideo
             ? `<video src="${url}" controls playsinline preload="metadata" class="max-h-96 w-auto rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/20 bg-black"></video>`
             : `<img loading="eager" decoding="async" src="${url}" alt="${title} gallery media" class="max-h-96 w-auto rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/20">`;
-        const adminDel = isAdmin ? `<button onclick="deleteGalleryItem('${img.id}', '${hobbyId}', '${h_safeTitle(title)}', '${coverImgUrl}')" class="absolute top-2 right-2 bg-red-500/95 text-white rounded-full w-9 h-9 flex items-center justify-center text-base shadow-lg border border-red-400 font-bold z-20 hover:bg-red-600">&#x2715;</button>` : '';
+        const adminDel = isAdmin ? `<button onclick="deleteGalleryItem('${img.id}', '${hobbyId}', '${h_safeTitle(title)}', '${mediaArg(coverImgUrl)}')" class="absolute top-2 right-2 bg-red-500/95 text-white rounded-full w-9 h-9 flex items-center justify-center text-base shadow-lg border border-red-400 font-bold z-20 hover:bg-red-600">&#x2715;</button>` : '';
         imgContainer.innerHTML += `<div class="relative group cursor-pointer hover:scale-105 transition-transform duration-300">${media}${adminDel}</div>`;
     });
     imgContainer.setAttribute('aria-busy', 'false');
@@ -1658,6 +1719,7 @@ window.openGallery = async function(hobbyId, title, coverImgUrl) {
 function h_safeTitle(t) { return (t || '').replace(/'/g, "\\'"); }
 
 window.deleteGalleryItem = async function(galleryId, hobbyId, title, coverImgUrl) {
+    if (!db) return alert('Offline mode: editing is disabled while Supabase is unavailable.');
     if (!confirm('Delete this media from the gallery?')) return;
     const { error } = await db.from('hobby_gallery').delete().eq('id', galleryId);
     if (error) return alert('Error: ' + error.message);
@@ -2706,8 +2768,8 @@ document.addEventListener('DOMContentLoaded', () => {
       pre.onerror = function(){
         img.src = real; img.removeAttribute('data-src'); img.classList.add('lqip-loaded');
       };
-      // Encode spaces and special characters so GitHub Pages can load downloaded filenames.
-  pre.src = encodeURI(real);
+      // data-src values are already normalized/encoded once by mediaUrl(); do not encode twice.
+      pre.src = real;
     });
   }, { rootMargin: '300px 0px', threshold: 0.01 }) : null;
 
