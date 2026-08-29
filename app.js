@@ -1,8 +1,10 @@
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 
 const supabaseUrl = 'https://mpcjnyuczjukfazplqjc.supabase.co';
-const supabaseKey = ''; 
-const db = window.supabase.createClient(supabaseUrl, supabaseKey);
+const supabaseKey = '';
+const db = supabaseKey && window.supabase?.createClient
+    ? window.supabase.createClient(supabaseUrl, supabaseKey)
+    : null;
 
 const SUPABASE_TIMEOUT_MS = 9000;
 const RELIABILITY_STORAGE_KEY = 'portfolio-reliability-dismissed';
@@ -49,6 +51,10 @@ async function withSupabaseTimeout(request, label) {
 }
 
 function queryTable(table, buildQuery, label = table) {
+    if (!db) {
+        activateOfflineMode();
+        return Promise.resolve({ data: null, error: new Error('Supabase key is not configured') });
+    }
     try {
         return withSupabaseTimeout(buildQuery(db.from(table)), label);
     } catch (error) {
@@ -1968,7 +1974,7 @@ const SACRED_TORCH_LYRICS = [
     // Japanese verses
     { time: 39.00,  text: "言葉だけに頼ることは危険",            style: "japanese" },
     { time: 43.50,  text: "力任せにならないように",              style: "japanese" },
-    { time: 47.00,  text: "しかと自分を見つめて立てたら",        style: "japanese" },
+    { time: 47.00,  text: "しかと自���を見つめて立てたら",        style: "japanese" },
     { time: 51.50,  text: "戦える",                              style: "japanese" },
 
     { time: 54.00,  text: "生きたいと望み 祈って",               style: "japanese" },
